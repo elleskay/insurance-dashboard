@@ -1,6 +1,6 @@
 # Variant: NestJS API
 
-Use this when the app needs a separate backend service. Covers OGP roles for ScamShield, HealthTech, and SE Manager (ScamShield).
+Use this when the app needs a separate backend service. Good for apps with heavy server-side logic, websockets, ML pipelines, or strict separation between web and API tiers.
 
 ## Stack
 
@@ -74,6 +74,3 @@ npm install @nestjs/elasticsearch @opensearch-project/opensearch
 
 Add `infra/cdk/opensearch/` stack with an OpenSearch domain.
 
-## Maps to OGP roles
-
-ScamShield (Senior + Manager), HealthTech (Senior/Lead + Lead Technical Lead Manager).

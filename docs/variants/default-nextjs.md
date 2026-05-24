@@ -1,16 +1,16 @@
 # Variant: Default Next.js
 
-Use this for most apps. Covers the OGP listings that ask for TypeScript, React, Next.js, Postgres, AWS.
+Use this for most apps. The default full-stack web app pattern: Next.js on AWS with managed Postgres.
 
 ## Stack
 
 - Next.js (App Router) + TypeScript
 - Tailwind + shadcn/ui
-- PostgreSQL via Drizzle ORM
+- PostgreSQL via Drizzle ORM (Neon serverless Postgres is the default)
 - Auth.js (NextAuth) for auth
 - Sentry for errors
 - Zod for validation
-- Hosted on AWS via CDK (ECS Fargate or Lambda + CloudFront)
+- Hosted on AWS via CDK (Lambda + CloudFront via OpenNext is the default, ECS Fargate as alternative)
 
 ## Setup
 
@@ -18,8 +18,9 @@ Use this for most apps. Covers the OGP listings that ask for TypeScript, React, 
 npx create-next-app@latest apps/web --typescript --tailwind --app --eslint
 cd apps/web
 npx shadcn@latest init
-npm install drizzle-orm pg zod @auth/core @auth/drizzle-adapter
-npm install -D drizzle-kit @types/pg
+npm install drizzle-orm pg zod next-auth@beta @auth/drizzle-adapter bcryptjs
+npm install -D drizzle-kit @types/pg @types/bcryptjs
+npm install @opennextjs/aws
 ```
 
 Extend `tsconfig.base.json`:
@@ -52,6 +53,8 @@ const securityHeaders = [
 ];
 
 export default {
+  output: "standalone",
+  poweredByHeader: false,
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
@@ -60,12 +63,42 @@ export default {
 
 ## Infra
 
-Add an app-specific CDK stack at `infra/cdk/web/` that:
+Two deploy patterns supported. Pick by traffic and budget.
 
-- Imports VPC and shared resources from `infra/cdk/base`
-- Provisions an RDS Postgres instance (or uses shared one)
-- Provisions the deploy target (Lambda + CloudFront, or ECS Fargate behind ALB)
+### Default: Serverless (Lambda + CloudFront via OpenNext)
 
-## Maps to OGP roles
+Best for portfolio apps and most production apps under ~1M requests/month.
 
-ActiveSG, KampungSpirit, NTES, SGC, Armoury, generic SWE, Senior/Lead SWE.
+- Idle cost: ~$0-2/month (Lambda scales to zero, CloudFront has no fixed cost)
+- Cold start: 200-800ms on first request after ~10 min idle
+- Built via `open-next build`, deployed via CDK
+
+Stack: `Lambda` (server) + `Lambda` (image opt) + `S3` (static assets) + `CloudFront` (edge).
+
+VPC not required. Connects to managed Postgres (Neon, RDS Proxy) over the public internet via TLS.
+
+### Alternative: ECS Fargate
+
+Use when you have steady traffic, need long-running connections, websockets, or run heavyweight Node deps that exceed Lambda's 250MB unzipped limit.
+
+- Idle cost: ~$95/month (NAT + Fargate + ALB + RDS)
+- No cold starts
+- Deployed via `docker build` + `cdk deploy`
+
+Stack: `ECS Fargate` + `ALB` + `RDS Postgres` + the platform `VPC` and `ECR`.
+
+### How to choose
+
+| Question | Pick |
+|---|---|
+| Hobbyist or portfolio? | Serverless |
+| Less than 1M requests/month? | Serverless |
+| Steady high traffic, websockets, long-running jobs? | ECS Fargate |
+| Hard sub-100ms latency on every request? | ECS Fargate |
+| Want $0 idle bill? | Serverless |
+
+For both patterns:
+- Add an app-specific CDK stack at `infra/cdk/<app>/`
+- Provision its own database (Neon for serverless, RDS for Fargate)
+- Reuse platform base resources (ECR for Fargate path; serverless doesn't need them)
+

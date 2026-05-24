@@ -1,6 +1,6 @@
 # Variant: AI-native
 
-Use this for the AI Native OGP role. Demonstrates LLM-integrated app patterns.
+Use this for apps with first-class LLM integration. Covers chat UIs, agent tools, structured output, MCP servers, and prompt management.
 
 ## Stack
 
@@ -77,6 +77,3 @@ Never execute LLM-generated code in your app process. Use Vercel Sandbox, e2b, o
 - Provider failover: have a second provider configured
 - Cost limits: hard cap per user per day
 
-## Maps to OGP roles
-
-Senior Software Engineer, AI Native.
