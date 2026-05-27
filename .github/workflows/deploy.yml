@@ -29,8 +29,31 @@ env:
   NODE_VERSION: "20"
 
 jobs:
+  # Skip the deploy when secrets aren't configured. This lets the platform
+  # template repo itself (and any fresh fork before secrets are set) pass CI
+  # without flagging a failure. Apps with secrets configured deploy normally.
+  preflight:
+    name: Preflight (skip if not configured)
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -n "$ROLE_ARN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Deploy is configured. Proceeding."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS_DEPLOY_ROLE_ARN secret is not set. Skipping deploy. This is normal for the template repo itself; apps using the template need to configure secrets per docs/SETUP.md."
+          fi
+
   deploy:
     name: Deploy to ${{ github.event.inputs.environment || 'production' }}
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'production' }}
     steps:
