@@ -1,9 +1,17 @@
 import type { Rule } from "eslint";
-import type { Node, CallExpression, FunctionExpression, ArrowFunctionExpression } from "estree";
+import type {
+  Node,
+  CallExpression,
+  FunctionExpression,
+  ArrowFunctionExpression,
+  Literal,
+} from "estree";
 
 interface NamedCallee {
   name: string;
 }
+
+const SPEC_ID_RE = /^\[([A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)+-\d{3,})\]/;
 
 function calleeName(node: CallExpression): string | null {
   const c = node.callee as Node & Partial<NamedCallee>;
@@ -12,6 +20,20 @@ function calleeName(node: CallExpression): string | null {
     const prop = (c as unknown as { property: Node & Partial<NamedCallee> })
       .property;
     if (prop.type === "Identifier") return prop.name ?? null;
+  }
+  return null;
+}
+
+function getStringLiteral(node: Node | undefined): string | null {
+  if (!node) return null;
+  if (node.type === "Literal" && typeof (node as Literal).value === "string") {
+    return (node as Literal).value as string;
+  }
+  if (node.type === "TemplateLiteral") {
+    const tl = node as unknown as { quasis: Array<{ value: { cooked: string } }>; expressions: unknown[] };
+    if (tl.expressions.length === 0 && tl.quasis.length === 1) {
+      return tl.quasis[0]?.value.cooked ?? null;
+    }
   }
   return null;
 }
@@ -65,40 +87,33 @@ export const requireExpectInSpecTest: Rule.RuleModule = {
     type: "problem",
     docs: {
       description:
-        "Require at least one expect() call inside every specTest body",
+        "Require at least one expect() call inside every test whose title is prefixed with a spec ID like [ARM-XXX-001]",
     },
     schema: [],
     messages: {
       missingExpect:
-        "specTest('{{id}}') must contain at least one expect() call. A spec requirement that records no assertion does not verify behavior.",
+        "test('[{{id}}] ...') must contain at least one expect() call. A spec requirement that records no assertion does not verify behavior.",
       missingBody:
-        "specTest('{{id}}') must be called with a function body.",
+        "test('[{{id}}] ...') must have a function body.",
     },
   },
   create(context) {
     return {
       CallExpression(node: CallExpression) {
-        if (calleeName(node) !== "specTest") return;
-        const firstArg = node.arguments[0];
-        const id =
-          firstArg && firstArg.type === "Literal" && typeof firstArg.value === "string"
-            ? firstArg.value
-            : "<unknown>";
+        const callee = calleeName(node);
+        if (callee !== "test" && callee !== "it") return;
+        const title = getStringLiteral(node.arguments[0] as Node | undefined);
+        if (!title) return;
+        const m = SPEC_ID_RE.exec(title);
+        if (!m) return;
+        const id = m[1] ?? "<unknown>";
         const body = findBodyFunction(node);
         if (!body) {
-          context.report({
-            node,
-            messageId: "missingBody",
-            data: { id },
-          });
+          context.report({ node, messageId: "missingBody", data: { id } });
           return;
         }
         if (!bodyHasExpect(body)) {
-          context.report({
-            node,
-            messageId: "missingExpect",
-            data: { id },
-          });
+          context.report({ node, messageId: "missingExpect", data: { id } });
         }
       },
     };

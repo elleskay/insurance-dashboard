@@ -46,7 +46,14 @@ export function readCoverage(path: string = getCoveragePath()): CoverageEntry[] 
 }
 
 export function resetCoverage(path: string = getCoveragePath()): void {
-  if (existsSync(path)) {
-    unlinkSync(path);
+  try {
+    if (existsSync(path)) {
+      unlinkSync(path);
+    }
+  } catch (err) {
+    // Race: another setup file may have unlinked it between existsSync and
+    // unlinkSync. Safe to ignore ENOENT.
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") throw err;
   }
 }

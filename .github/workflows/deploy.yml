@@ -73,6 +73,21 @@ jobs:
       - name: Install workspace dependencies
         run: npm ci
 
+      # Apply DB migrations before the new Lambda code (which may reference
+      # new columns/tables) goes live. If the app does not use Drizzle, the
+      # conditional skips this step. Requires a db/migrate.ts script and
+      # DATABASE_URL secret.
+      - name: Apply database migrations (if db/migrate.ts exists)
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -f db/migrate.ts ]; then
+            npx tsx db/migrate.ts
+          else
+            echo "::notice::No db/migrate.ts found, skipping migration step"
+          fi
+
       - name: Build Next.js with OpenNext
         working-directory: ${{ env.APP_DIR }}
         env:

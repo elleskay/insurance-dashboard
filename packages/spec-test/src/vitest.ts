@@ -1,51 +1,26 @@
-import { test as vitestTest, expect as vitestExpect } from "vitest";
+import { test, expect, afterEach } from "vitest";
 import { recordCoverage } from "./coverage.js";
-import type { RequirementCategory } from "./schema.js";
 
-export const expect = vitestExpect;
-export const test = vitestTest;
+export { test, expect };
 
-export interface SpecTestOptions {
-  category?: RequirementCategory;
-}
+const SPEC_ID_RE = /^\[([A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)+-\d{3,})\]/;
 
-type SpecTestBody = Parameters<typeof vitestTest>[1];
-
-export function specTest(
-  id: string,
-  titleOrFn: string | SpecTestBody,
-  bodyOrOptions?: SpecTestBody | SpecTestOptions,
-  maybeOptions?: SpecTestOptions,
-): void {
-  const title = typeof titleOrFn === "string" ? titleOrFn : id;
-  const body =
-    typeof titleOrFn === "function"
-      ? titleOrFn
-      : (bodyOrOptions as SpecTestBody);
-  const opts: SpecTestOptions =
-    (typeof titleOrFn === "string"
-      ? (maybeOptions as SpecTestOptions | undefined)
-      : (bodyOrOptions as SpecTestOptions | undefined)) ?? {};
-
-  if (typeof body !== "function") {
-    throw new Error(`specTest(${id}): body function is required`);
-  }
-
-  vitestTest(`[${id}] ${title}`, async (ctx) => {
-    const start = Date.now();
-    let passed = true;
-    try {
-      await (body as (ctx: unknown) => unknown | Promise<unknown>)(ctx);
-    } catch (err) {
-      passed = false;
-      throw err;
-    } finally {
-      recordCoverage({
-        id,
-        status: passed ? "passed" : "failed",
-        category: opts.category,
-        durationMs: Date.now() - start,
-      });
-    }
+/**
+ * Register a global afterEach hook that parses the test name for a spec ID
+ * and records pass/fail to the coverage JSONL. Call this once from a Vitest
+ * setupFile.
+ */
+export function setupSpecCoverage(): void {
+  afterEach((ctx) => {
+    const taskName = ctx.task?.name ?? "";
+    const m = SPEC_ID_RE.exec(taskName);
+    if (!m) return;
+    const id = m[1] as string;
+    const failed = !!ctx.task?.result?.errors?.length;
+    recordCoverage({
+      id,
+      status: failed ? "failed" : "passed",
+      durationMs: ctx.task?.result?.duration,
+    });
   });
 }

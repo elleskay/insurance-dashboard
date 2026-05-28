@@ -1,51 +1,35 @@
-import { test as base, expect as pwExpect } from "@playwright/test";
+import { test as base, expect } from "@playwright/test";
 import { recordCoverage } from "./coverage.js";
-import type { RequirementCategory } from "./schema.js";
 
-export const expect = pwExpect;
-export const test = base;
+const SPEC_ID_RE = /^\[([A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)+-\d{3,})\]/;
 
-export interface SpecTestOptions {
-  category?: RequirementCategory;
-}
-
-type SpecTestFn = Parameters<typeof base>[1];
-
-export function specTest(
-  id: string,
-  titleOrFn: string | SpecTestFn,
-  bodyOrOptions?: SpecTestFn | SpecTestOptions,
-  maybeOptions?: SpecTestOptions,
-): void {
-  const title = typeof titleOrFn === "string" ? titleOrFn : id;
-  const body =
-    typeof titleOrFn === "function" ? titleOrFn : (bodyOrOptions as SpecTestFn);
-  const opts: SpecTestOptions =
-    (typeof titleOrFn === "string"
-      ? (maybeOptions as SpecTestOptions | undefined)
-      : (bodyOrOptions as SpecTestOptions | undefined)) ?? {};
-
-  if (typeof body !== "function") {
-    throw new Error(`specTest(${id}): body function is required`);
-  }
-
-  const runner = body as (...args: unknown[]) => unknown | Promise<unknown>;
-  base(`[${id}] ${title}`, async (fixtures, testInfo) => {
-    const start = Date.now();
-    let passed = true;
-    try {
-      await runner(fixtures, testInfo);
-    } catch (err) {
-      passed = false;
-      throw err;
-    } finally {
+/**
+ * Extended Playwright `test` that auto-records spec coverage.
+ *
+ * Title convention: "[ARM-XXX-001] human description". The leading
+ * [ID] is parsed; if present, the test's outcome is appended to
+ * .spec-coverage/results.jsonl in a post-test hook.
+ *
+ * Tests without a [ID] prefix run normally and are not recorded.
+ */
+export const test = base.extend<{ specCoverage: void }>({
+  specCoverage: [
+    async ({}, use, testInfo) => {
+      await use();
+      const m = SPEC_ID_RE.exec(testInfo.title);
+      if (!m) return;
+      const id = m[1] as string;
+      const status: "passed" | "failed" =
+        testInfo.status === "passed" ? "passed" : "failed";
       recordCoverage({
         id,
-        status: passed ? "passed" : "failed",
-        category: opts.category,
+        status,
         file: testInfo.file,
-        durationMs: Date.now() - start,
+        durationMs: testInfo.duration,
       });
-    }
-  });
-}
+    },
+    { auto: true },
+  ],
+});
+
+export { expect };
