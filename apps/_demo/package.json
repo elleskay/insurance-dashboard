@@ -20,7 +20,7 @@
     "next": "^16.0.0",
     "next-auth": "^5.0.0-beta.31",
     "posthog-js": "^1.376.3",
-    "posthog-node": "^4.10.0",
+    "posthog-node": "^5.35.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^4.0.0",
