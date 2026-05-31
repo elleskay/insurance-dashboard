@@ -1,28 +1,30 @@
 @import "tailwindcss";
 
-/* Fintech-trust dashboard: trust blue + emerald, clear status colors, light,
-   data-dense but scannable, AA contrast. */
+/* Premium fintech dashboard: indigo trust + emerald, dark gradient hero,
+   data-viz rings, soft depth, AA contrast. */
 @theme {
-  --color-page: #f5f7fb;
+  --color-page: #f4f5fb;
   --color-card: #ffffff;
-  --color-surface: #eef2f8;
-  --color-foreground: #0f172a;
-  --color-heading: #0f1f3d;
-  --color-muted-foreground: #51607a;
-  --color-primary: #1e40af;
-  --color-primary-strong: #1a3699;
+  --color-surface: #eef0f8;
+  --color-foreground: #131a2b;
+  --color-heading: #0c1330;
+  --color-muted-foreground: #586079;
+  --color-primary: #4338ca;
+  --color-primary-strong: #3730a3;
   --color-on-primary: #ffffff;
-  --color-accent: #047857;
+  --color-accent: #059669;
   --color-ok: #047857;
   --color-ok-soft: #ecfdf5;
   --color-warn: #b45309;
   --color-warn-soft: #fff7ed;
   --color-danger: #b91c1c;
   --color-danger-soft: #fef2f2;
-  --color-border: #dbe2ee;
-  --color-ring: #1e40af;
+  --color-border: #e2e5f0;
+  --color-ring: #4338ca;
 
-  --font-sans: var(--font-plex), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-mono-jb), ui-monospace, "SFMono-Regular", monospace;
 }
 
 body {
@@ -33,36 +35,47 @@ body {
 
 h1,
 h2,
-h3,
-h4 {
-  font-family: var(--font-sans);
+h3 {
+  font-family: var(--font-display);
   color: var(--color-heading);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .field-input {
   width: 100%;
-  border-radius: 0.5rem;
+  border-radius: 0.625rem;
   border: 1px solid var(--color-border);
   background-color: #ffffff;
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.75rem;
   color: var(--color-foreground);
 }
 .field-input:focus {
   outline: none;
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.18);
 }
 
 .shadow-card {
   box-shadow:
-    0 1px 2px rgba(15, 31, 61, 0.04),
-    0 10px 28px -18px rgba(15, 31, 61, 0.22);
+    0 1px 2px rgba(12, 19, 48, 0.05),
+    0 12px 32px -18px rgba(12, 19, 48, 0.24);
+}
+
+/* Dark gradient hero. All stops are dark, so white text stays high-contrast. */
+.hero-gradient {
+  background:
+    radial-gradient(120% 150% at 0% 0%, #3730a3 0%, rgba(55, 48, 163, 0) 52%),
+    radial-gradient(120% 150% at 100% 8%, #0e7490 0%, rgba(14, 116, 144, 0) 48%),
+    linear-gradient(135deg, #0a0f1f 0%, #141b30 100%);
+}
+.shadow-glow {
+  box-shadow: 0 24px 60px -24px rgba(67, 56, 202, 0.55);
 }
 
 :focus-visible {
   outline: 3px solid var(--color-ring);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {

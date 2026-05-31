@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans } from "next/font/google";
+import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { meta } from "@/lib/insure/meta";
 
-const plex = IBM_Plex_Sans({
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const grotesk = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-plex",
+  weight: ["500", "600", "700"],
+  variable: "--font-grotesk",
+  display: "swap",
+});
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["500"],
+  variable: "--font-mono-jb",
   display: "swap",
 });
 
@@ -18,7 +25,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${plex.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${grotesk.variable} ${mono.variable} h-full antialiased`}
+    >
       <body className="min-h-full">
         <a
           href="#main"
@@ -27,11 +37,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
 
-        <header className="border-b border-border bg-card">
-          <div className="mx-auto flex max-w-5xl items-center gap-2.5 px-5 py-4">
+        <header className="sticky top-0 z-30 border-b border-border/70 bg-page/85 backdrop-blur-md">
+          <div className="mx-auto flex max-w-6xl items-center gap-2.5 px-5 py-3.5">
             <span
               aria-hidden="true"
-              className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-on-primary"
+              className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-on-primary shadow-card"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -46,18 +56,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <path d="M9 12l2 2 4-4" />
               </svg>
             </span>
-            <span className="text-lg font-bold text-heading">
-              Insurance Coverage, Singapore
-            </span>
+            <span className="text-lg font-bold text-heading">CoverLens SG</span>
           </div>
         </header>
 
-        <main id="main" className="mx-auto max-w-5xl px-5 py-8">
+        <main id="main" className="mx-auto max-w-6xl px-5 py-8">
           {children}
         </main>
 
         <footer className="mt-8 border-t border-border bg-card">
-          <div className="mx-auto max-w-5xl px-5 py-6 text-sm text-muted-foreground">
+          <div className="mx-auto max-w-6xl px-5 py-6 text-sm text-muted-foreground">
             <p data-testid="disclaimer">{meta.disclaimer}</p>
             <p data-testid="reviewed" className="mt-2">
               Last reviewed: {meta.lastReviewed}.
