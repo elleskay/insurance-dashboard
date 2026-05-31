@@ -1,58 +1,90 @@
-# platform
+# CoverLens SG
 
-TypeScript platform template for shipping Next.js apps to AWS serverless. CI/CD, IaC, security, governance, pre-canned IAM, a verified deploy workflow, and a working demo app that proves the patterns end to end.
+Upload your Singapore insurance policy PDFs and get an instant coverage summary: what you are covered for by category, what you pay, and where your protection may fall short of the common rules of thumb. No data entry, the figures are read from your documents for you.
 
-Designed to be cloned per-app, not vendored as a dependency.
+**Live:** https://d33z7oya883ugt.cloudfront.net
 
-## What's inside
+> Estimates only, not financial advice. Benchmarks are rules of thumb from the LIA and MoneySense Basic Financial Planning Guide. Always confirm against your actual policy documents or a licensed adviser.
 
-| Area | Where |
-|---|---|
-| CI (actionlint, typecheck, lint, demo build, CDK synth) | `.github/workflows/ci.yml` |
-| Security scanning (CodeQL, secrets, npm audit) | `.github/workflows/security.yml` |
-| Deploy pipeline (build OpenNext, CDK deploy, smoke test) | `.github/workflows/deploy.yml` |
-| Reusable CDK construct (Lambda + S3 + CloudFront + optional custom domain) | `infra/cdk/_template/lib/constructs/NextjsServerless.ts` |
-| Full CDK package scaffold (copy and rename per app) | `infra/cdk/_template/` |
-| One-time AWS setup stack (OIDC + IAM role) | `infra/cdk/_setup/` |
-| Pre-canned IAM policy for the deploy user/role | `infra/iam/cdk-deploy-policy.json` |
-| Reference overlay files (next.config, auth.config, middleware, SignOutButton, Sentry, PostHog, Sonner, Resend, Upstash) | `apps/_template/` |
-| **Working demo app** (proves the construct + patterns end to end) | `apps/_demo/` |
-| Smoke-test script (9 checks, catches real production failures) | `scripts/verify-deploy.sh` |
-| **Spec-driven test system** (zod-validated YAML spec, `specTest` runner, 100% coverage gate, ESLint rule) | `packages/spec-test/` |
-| Test scaffolding overlay (Vitest, Playwright, sample spec, CI workflow with Postgres service) | `apps/_template/tests/`, `apps/_template/.github/workflows/test.yml` |
-| Stack, security, testing guidance | `docs/`, see `docs/TESTING.md` |
-| TS/ESLint/Prettier base configs | root |
-| Conventional commits + commitlint | `commitlint.config.mjs` |
+## What it does
 
-## How to use
+- **Upload, do not type.** Drop one or more policy PDFs. The browser reads the text, an AI model extracts each policy (insurer, category, sum assured, premium), and the dashboard fills in automatically. One document can contain several policies.
+- **Coverage by category.** Hospitalisation (Integrated Shield), life (death and TPD), critical illness, disability income, and personal accident, with a donut breakdown and per-category totals.
+- **Adequacy check (optional).** Add your annual income to compare cover against the benchmarks: death and TPD vs about 9x income, critical illness vs about 4x, shown as gauges with the gap or met status.
+- **Premium view.** Total annual premium and its share of income against the roughly 15 percent protection guideline.
+- **Fix anything inline.** The policy list is editable, so anything the model misreads is corrected in place. A manual "add by hand" fallback covers documents that will not parse.
 
-1. Create your app repo from this template:
-   ```bash
-   gh repo create my-app --template elleskay/platform --clone --private
-   cd my-app
-   ```
-2. Create your real app at `apps/web/` (use `create-next-app` and overlay the reference files from `apps/_template/`, or copy `apps/_demo/` and rename it). The platform's `apps/_demo/` is sacred so CI's self-test keeps working; don't replace it.
-3. Rename `infra/cdk/_template/` to `infra/cdk/<your-app>/`. Edit `bin/app.ts` to match the stack id you want.
-4. Run the setup CDK to provision the OIDC role: `cd infra/cdk/_setup && npm install && npx cdk deploy -c repo=<owner>/<your-app>`. Copy the output role ARN.
-5. Configure AWS (OIDC + the IAM policy from `infra/iam/`), set the GitHub secrets and variables, push. The deploy workflow handles the rest.
+## How extraction works
 
-Full step-by-step in `docs/SETUP.md` and `docs/DEPLOY.md`. All 10 gotchas the platform has hit in production are documented in `docs/DEPLOY.md`.
+1. The PDF is read to text in the browser with `pdfjs-dist`.
+2. That text is POSTed to `/api/extract`, a server route that calls Claude through the Vercel AI SDK (`generateObject` with a strict schema).
+3. The response is normalized (categories validated, monthly premiums annualized, amounts coerced, unknowns dropped) and added to the dashboard.
 
-## Self-test
+### Privacy
 
-The platform's CI builds `apps/_demo/` (the demo app) and runs `cdk synth` against the construct on every push. If the construct breaks, CI fails before any cloned app picks it up.
+The document text is sent to an AI service to extract the figures. It is not stored. This is a deliberate tradeoff for extraction quality, and it is disclosed in the upload area. Do not upload anything you are not comfortable sharing with an AI service. State persists only in your browser's `localStorage`.
 
-## Opinions
+## Tech
 
-The platform makes a few deliberate choices that constrain the happy path:
+- Next.js 16 (App Router) and React 19, TypeScript strict, Tailwind v4, Geist fonts.
+- `pdfjs-dist` for in-browser PDF text extraction (worker bundled as a `/_next/static` asset).
+- Vercel AI SDK v6 with `@ai-sdk/anthropic`; Zod for schema and request validation.
+- AWS Lambda, S3, and CloudFront via OpenNext, provisioned with AWS CDK.
+- Built on the [platform template](https://github.com/elleskay/platform).
 
-- **Serverless only.** Lambda + CloudFront + S3 via OpenNext. ~$0-2/month idle. If you need always-on containers, fork.
-- **No shared infra base.** Each app is self-contained. Sharing VPCs across portfolio apps is premature optimisation.
-- **No NestJS / no mobile / no AI-specific variant docs.** Speculation. Add a variant only when a real app needs one.
-- **Constructs are copied, not imported.** Each app pins its version of `NextjsServerless`. Breaking changes don't propagate without explicit action.
-- **The platform dogfoods itself.** `apps/_demo/` is a real Next.js app built and synthesised by the same workflow apps inherit. If the platform's own demo broke, you'd see it.
+## Local development
 
-The smaller the surface area, the fewer wrong-by-default ways apps can diverge.
+```bash
+cd apps/insure
+npm install
+# AI extraction needs a key; without it the route returns 503 and the app
+# falls back to manual entry.
+ANTHROPIC_API_KEY=sk-ant-... npm run dev
+```
+
+Open http://localhost:3000. Override the model with `EXTRACT_MODEL` (default `claude-haiku-4-5`).
+
+## Testing
+
+Spec-driven: every requirement in `apps/insure/specs/insure.yml` (19 of them) has a test, and the gate fails below 100 percent coverage. Data requirements run on Vitest, the rest on Playwright; accessibility is checked with axe. The non-deterministic AI call is stubbed in e2e so the gate stays offline and deterministic.
+
+```bash
+cd apps/insure
+npm run test:spec   # build + unit + e2e + coverage gate
+npm run lint
+npx tsc --noEmit
+```
+
+## Deploy
+
+Manual local deploy to AWS (account-specific). OpenNext build first, then CDK. The API key is baked into the Lambda environment at synth time, so it must be present when you deploy.
+
+```bash
+cd apps/insure && npm run build:open-next
+cd ../../infra/cdk/insure
+ANTHROPIC_API_KEY=sk-ant-... \
+PLATFORM_DEMO_APP_PATH=apps/insure \
+CDK_DEFAULT_REGION=ap-southeast-1 \
+npx cdk deploy --require-approval never
+```
+
+Stack: `InsureServerless`. See `docs/DEPLOY.md` for the platform deploy gotchas.
+
+### Before sharing the live URL publicly
+
+`/api/extract` is a public, unauthenticated endpoint with only an input length cap. Anyone calling it spends your API credits. Add rate limiting (the platform ships a no-op Upstash helper) or auth before wide exposure.
+
+## Structure
+
+```
+apps/insure/
+  app/            # layout, page, /api/extract route, globals.css
+  components/     # Dashboard, PdfUpload, Aurora, TiltCard
+  lib/insure/     # types, compute (adequacy/premium), extract-ai (schema + normalize), meta
+  specs/          # insure.yml (the source of truth for tests)
+  tests/          # unit (Vitest) + e2e (Playwright) + fixtures
+infra/cdk/insure/ # CDK package (stack InsureServerless)
+```
 
 ## License
 
