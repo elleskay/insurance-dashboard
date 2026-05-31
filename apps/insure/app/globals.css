@@ -1,30 +1,29 @@
 @import "tailwindcss";
 
-/* Premium fintech dashboard: indigo trust + emerald, dark gradient hero,
-   data-viz rings, soft depth, AA contrast. */
+/* Aesthetic ported from the resume-site: neutral base, purple/blue accents,
+   aurora blobs + grid background, gradient headings, glassy tilt cards, Geist. */
 @theme {
-  --color-page: #f4f5fb;
-  --color-card: #ffffff;
-  --color-surface: #eef0f8;
-  --color-foreground: #131a2b;
-  --color-heading: #0c1330;
-  --color-muted-foreground: #586079;
-  --color-primary: #4338ca;
-  --color-primary-strong: #3730a3;
-  --color-on-primary: #ffffff;
-  --color-accent: #059669;
+  --color-page: oklch(0.99 0 0);
+  --color-card: oklch(1 0 0);
+  --color-surface: oklch(0.972 0 0);
+  --color-foreground: oklch(0.22 0 0);
+  --color-heading: oklch(0.17 0 0);
+  --color-muted-foreground: oklch(0.5 0 0);
+  --color-primary: oklch(0.52 0.21 285);
+  --color-primary-strong: oklch(0.46 0.21 285);
+  --color-on-primary: oklch(1 0 0);
+  --color-accent: oklch(0.58 0.16 235);
   --color-ok: #047857;
   --color-ok-soft: #ecfdf5;
   --color-warn: #b45309;
   --color-warn-soft: #fff7ed;
   --color-danger: #b91c1c;
   --color-danger-soft: #fef2f2;
-  --color-border: #e2e5f0;
-  --color-ring: #4338ca;
+  --color-border: oklch(0.9 0 0);
+  --color-ring: oklch(0.52 0.21 285);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: var(--font-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
-  --font-mono: var(--font-mono-jb), ui-monospace, "SFMono-Regular", monospace;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 body {
@@ -36,40 +35,101 @@ body {
 h1,
 h2,
 h3 {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   color: var(--color-heading);
   letter-spacing: -0.02em;
 }
 
 .field-input {
   width: 100%;
-  border-radius: 0.625rem;
+  border-radius: 0.75rem;
   border: 1px solid var(--color-border);
-  background-color: #ffffff;
-  padding: 0.55rem 0.75rem;
+  background-color: oklch(1 0 0);
+  padding: 0.55rem 0.8rem;
   color: var(--color-foreground);
 }
 .field-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.18);
+  box-shadow: 0 0 0 3px oklch(0.52 0.21 285 / 0.18);
 }
 
 .shadow-card {
   box-shadow:
-    0 1px 2px rgba(12, 19, 48, 0.05),
-    0 12px 32px -18px rgba(12, 19, 48, 0.24);
+    0 1px 2px oklch(0.2 0 0 / 0.04),
+    0 18px 40px -22px oklch(0.3 0.08 285 / 0.28);
 }
 
-/* Dark gradient hero. All stops are dark, so white text stays high-contrast. */
-.hero-gradient {
-  background:
-    radial-gradient(120% 150% at 0% 0%, #3730a3 0%, rgba(55, 48, 163, 0) 52%),
-    radial-gradient(120% 150% at 100% 8%, #0e7490 0%, rgba(14, 116, 144, 0) 48%),
-    linear-gradient(135deg, #0a0f1f 0%, #141b30 100%);
+.btn-gradient {
+  background-image: linear-gradient(135deg, oklch(0.55 0.22 290), oklch(0.6 0.16 235));
+  color: #fff;
 }
-.shadow-glow {
-  box-shadow: 0 24px 60px -24px rgba(67, 56, 202, 0.55);
+.btn-gradient:hover {
+  filter: brightness(1.06);
+}
+
+/* Gradient clip-text heading */
+.text-gradient {
+  background-image: linear-gradient(
+    135deg,
+    oklch(0.28 0.08 285) 0%,
+    oklch(0.55 0.22 290) 48%,
+    oklch(0.58 0.18 230) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Aurora background */
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.grid-bg {
+  background-image:
+    linear-gradient(to right, oklch(0.2 0 0 / 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.2 0 0 / 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+@keyframes float-slow {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, -30px) scale(1.05); }
+}
+.animate-float-slow { animation: float-slow 16s ease-in-out infinite; }
+@keyframes float-slower {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-30px, 20px) scale(1.1); }
+}
+.animate-float-slower { animation: float-slower 22s ease-in-out infinite; }
+
+/* Cursor-tilt card with a spotlight that follows the pointer */
+.tilt-card {
+  position: relative;
+  transform: perspective(900px) rotateX(0) rotateY(0);
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease, border-color 0.2s ease, box-shadow 0.3s ease;
+  will-change: transform;
+}
+.tilt-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 50%),
+    oklch(0.6 0.2 290 / 0.16),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.tilt-card:hover::after {
+  opacity: 1;
 }
 
 :focus-visible {
@@ -83,6 +143,10 @@ h3 {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  .tilt-card {
+    transform: none !important;
   }
 }
