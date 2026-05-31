@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { extractPolicyFromText } from "@/lib/insure/extractor";
 import type { ExtractedPolicy } from "@/lib/insure/types";
 
 export interface ParsedUpload {
@@ -34,6 +33,17 @@ async function readPdfText(file: File): Promise<string> {
   return text;
 }
 
+async function extractViaApi(text: string): Promise<ExtractedPolicy[]> {
+  const res = await fetch("/api/extract", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: text.slice(0, 60_000) }),
+  });
+  if (!res.ok) throw new Error("extract failed");
+  const data = (await res.json()) as { policies?: ExtractedPolicy[] };
+  return Array.isArray(data.policies) ? data.policies : [];
+}
+
 export function PdfUpload({
   onParsed,
 }: {
@@ -48,18 +58,24 @@ export function PdfUpload({
     const list = Array.from(files).filter((f) => /pdf$/i.test(f.name) || f.type === "application/pdf");
     if (list.length === 0) return;
     setBusy(true);
-    setStatus(`Reading ${list.length} document${list.length > 1 ? "s" : ""} in your browser...`);
+    setStatus(`Reading ${list.length} document${list.length > 1 ? "s" : ""} and extracting with AI...`);
     const results: ParsedUpload[] = [];
     let failed = 0;
     for (const file of list) {
       try {
         const text = await readPdfText(file);
-        const extracted = extractPolicyFromText(text);
-        const missing: ParsedUpload["missing"] = [];
-        if (extracted.category === undefined) missing.push("category");
-        if (extracted.sumAssured === undefined) missing.push("sumAssured");
-        if (extracted.annualPremium === undefined) missing.push("annualPremium");
-        results.push({ fileName: file.name, extracted, missing });
+        const extractedList = await extractViaApi(text);
+        if (extractedList.length === 0) {
+          failed += 1;
+          continue;
+        }
+        for (const extracted of extractedList) {
+          const missing: ParsedUpload["missing"] = [];
+          if (extracted.category === undefined) missing.push("category");
+          if (extracted.sumAssured === undefined) missing.push("sumAssured");
+          if (extracted.annualPremium === undefined) missing.push("annualPremium");
+          results.push({ fileName: file.name, extracted, missing });
+        }
       } catch {
         failed += 1;
       }
@@ -104,7 +120,7 @@ export function PdfUpload({
           {busy ? "Reading your documents..." : "Drop your policy PDFs here"}
         </span>
         <span className="text-sm text-muted-foreground">
-          or click to choose files. We read them and build your summary automatically.
+          or click to choose files. AI reads them and builds your summary automatically.
         </span>
         <input
           id="pdf-input"
@@ -121,8 +137,10 @@ export function PdfUpload({
         />
       </label>
       <p data-testid="privacy-note" className="text-sm text-muted-foreground">
-        Your documents are read entirely in your browser and are never uploaded
-        to any server. We pull out the figures so you do not have to type them.
+        The text from your document is read in your browser and then sent to our
+        AI extraction service to pull out the figures, so you do not have to type
+        them. We do not store your documents. Avoid uploading anything you are
+        not comfortable sharing with an AI service.
       </p>
       {status ? (
         <p role="status" className="text-sm font-medium text-primary">

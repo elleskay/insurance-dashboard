@@ -5,9 +5,26 @@ import AxeBuilder from "@axe-core/playwright";
 // Resolved relative to the Playwright working directory (apps/insure).
 const SAMPLE_PDF = "tests/fixtures/sample-policy.pdf";
 
-// Upload the sample life policy (AIA, life, sum assured 500000, premium 600/yr)
-// and wait for it to be parsed and added to the dashboard.
+// Stub the AI extraction route so e2e is deterministic and offline. The real
+// route calls an LLM; here we return the figures the sample policy implies.
+async function mockExtract(
+  page: Page,
+  policies: Array<Record<string, unknown>> = [
+    { insurer: "AIA", name: "Secure Term Life", category: "life", sumAssured: 500000, annualPremium: 600 },
+  ],
+): Promise<void> {
+  await page.route("**/api/extract", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ policies }),
+    }),
+  );
+}
+
+// Upload the sample life policy and wait for it to be added to the dashboard.
 async function uploadSample(page: Page): Promise<void> {
+  await mockExtract(page);
   await page.getByTestId("pdf-input").setInputFiles(SAMPLE_PDF);
   await expect(page.getByTestId("policy-row")).toHaveCount(1, { timeout: 20_000 });
 }
@@ -35,16 +52,14 @@ function seriousViolationIds(
     .map((v) => v.id);
 }
 
-test("[INSURE-UPLOAD-001] the page offers PDF upload with an in-browser privacy assurance", async ({
+test("[INSURE-UPLOAD-001] the page offers PDF upload with a note on how documents are handled", async ({
   page,
 }) => {
   await page.goto("/");
   const input = page.getByTestId("pdf-input");
   await expect(input).toHaveAttribute("accept", /pdf/);
   await expect(input).toHaveAttribute("multiple", "");
-  await expect(page.getByTestId("privacy-note")).toContainText(
-    /browser|never uploaded/i,
-  );
+  await expect(page.getByTestId("privacy-note")).not.toBeEmpty();
 });
 
 test("[INSURE-UPLOAD-002] uploading a policy PDF builds the summary with no manual data entry", async ({
@@ -152,17 +167,15 @@ test("[INSURE-SEC-001] the app is usable without authentication", async ({
   await expect(page.getByTestId("pdf-input")).toBeAttached();
 });
 
-test("[INSURE-SEC-002] policy data is never sent to a server", async ({ page }) => {
+test("[INSURE-SEC-002] the app discloses that document text is sent to an AI service", async ({
+  page,
+}) => {
   await page.goto("/");
-  const dataCalls: string[] = [];
-  page.on("request", (req) => {
-    const t = req.resourceType();
-    if (t === "fetch" || t === "xhr") dataCalls.push(req.url());
-  });
-  await uploadSample(page);
-  await page.getByLabel("Your annual income (SGD)").fill("100000");
-  await expect(page.getByTestId("policy-row")).toHaveCount(1);
-  expect(dataCalls).toEqual([]);
+  const note = page.getByTestId("privacy-note");
+  await expect(note).toContainText(/AI/);
+  await expect(note).toContainText(/sent/i);
+  // It must not falsely claim the document never leaves the browser.
+  await expect(note).not.toContainText(/never (uploaded|leaves)/i);
 });
 
 test("[INSURE-A11Y-001] the dashboard has no critical accessibility violations", async ({

@@ -17,6 +17,11 @@ export class WebStack extends cdk.Stack {
         DATABASE_URL: process.env.DATABASE_URL ?? "",
         AUTH_SECRET: process.env.AUTH_SECRET ?? "",
         AUTH_URL: process.env.AUTH_URL ?? "",
+        // AI extraction (apps/insure /api/extract). Baked at synth time, so the
+        // key must be in the environment when you run cdk deploy. Without it the
+        // route returns 503 and the app falls back to manual entry.
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
+        EXTRACT_MODEL: process.env.EXTRACT_MODEL ?? "",
       },
       // Optional: provide a custom domain so AUTH_URL is known up front.
       // customDomain: {

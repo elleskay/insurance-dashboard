@@ -16,22 +16,22 @@ requirements:
   # DATA: extractor + dashboard math (Vitest)
   # ---------------------------------------------------------------------------
   - id: INSURE-DATA-001
-    title: The extractor pulls category, sum assured and premium from policy text
+    title: AI extraction output is normalised into valid policy fields
     category: data
     severity: critical
-    given: Plain text extracted from a critical-illness policy mentioning an insurer, a sum assured and an annual premium
-    when: extractPolicyFromText is called on it
-    then: It returns the critical-illness category, the sum assured amount, and the annualised premium
-    tags: [extractor]
+    given: Raw policy objects returned by the AI extractor (a known category, a sum assured as a string, a monthly premium amount)
+    when: normalizePolicies is called on them
+    then: It maps the category to a known category, coerces the sum assured to a number, and annualises the monthly premium
+    tags: [extractor, normalize]
 
   - id: INSURE-DATA-002
-    title: The extractor does not invent values from unrelated text
+    title: Normalisation drops unrecognised or invalid values rather than inventing them
     category: data
     severity: high
-    given: Text with no recognisable insurance fields
-    when: extractPolicyFromText is called
-    then: It returns no category and no numeric amounts rather than fabricated values
-    tags: [extractor, safety]
+    given: Raw AI output with an unknown category and a zero or negative amount
+    when: normalizePolicies is called
+    then: It returns an undefined category and no numeric amount rather than fabricated values
+    tags: [extractor, normalize, safety]
 
   - id: INSURE-DATA-003
     title: Coverage totals are summed per category
@@ -64,12 +64,12 @@ requirements:
   # UPLOAD + REVIEW (Playwright)
   # ---------------------------------------------------------------------------
   - id: INSURE-UPLOAD-001
-    title: The page offers PDF upload with an in-browser privacy assurance
+    title: The page offers PDF upload with a note on how documents are handled
     category: ui
     severity: high
     given: A visitor on the dashboard
     when: They look at the upload area
-    then: A file input that accepts one or more PDFs is shown, with a clear note that documents are processed in the browser and never uploaded
+    then: A file input that accepts one or more PDFs is shown, alongside a clear note explaining how the document is handled
     tags: [upload, privacy]
 
   - id: INSURE-UPLOAD-002
@@ -78,8 +78,8 @@ requirements:
     severity: critical
     given: A visitor with a policy PDF and an empty dashboard
     when: They upload the PDF
-    then: The app extracts the category, sum assured and premium from the document and adds the policy to the dashboard automatically, without the visitor typing any policy values
-    tags: [upload, extract, journey]
+    then: The app reads the document text in the browser, sends it to the AI extraction service, and adds the returned policy (category, sum assured, premium) to the dashboard automatically, without the visitor typing any policy values
+    tags: [upload, extract, ai, journey]
 
   - id: INSURE-REVIEW-001
     title: An extracted policy can be corrected inline without re-entering it
@@ -165,13 +165,13 @@ requirements:
     tags: [auth, public]
 
   - id: INSURE-SEC-002
-    title: Policy data is never sent to a server
+    title: The app discloses that document text is sent to an AI service
     category: security
     severity: critical
-    given: A visitor uploading a policy document and entering income
-    when: Network activity is observed during these actions
-    then: No request carries the policy figures or document content to the server; the PDF is parsed and all processing stays in the browser
-    tags: [privacy, pdpa]
+    given: A visitor looking at the upload area before uploading
+    when: They read the privacy note
+    then: It clearly states that the document text is sent to an AI service to extract the figures (it does not claim the document never leaves the browser)
+    tags: [privacy, ai, transparency]
 
   # ---------------------------------------------------------------------------
   # ACCESSIBILITY (Playwright + axe)

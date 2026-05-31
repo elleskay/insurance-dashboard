@@ -17,6 +17,8 @@
     "test:spec": "npm run test:reset && npm run build && npm run test:unit && npm run test:e2e && npm run test:coverage"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.81",
+    "ai": "^6.0.193",
     "next": "^16.0.0",
     "pdfjs-dist": "^4.7.76",
     "react": "^19.0.0",
