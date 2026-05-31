@@ -38,7 +38,7 @@ export async function POST(req: Request) {
 
   try {
     const { object } = await generateObject({
-      model: anthropic(process.env.EXTRACT_MODEL || "claude-3-5-haiku-latest"),
+      model: anthropic(process.env.EXTRACT_MODEL || "claude-haiku-4-5"),
       schema: llmExtractionSchema,
       system: EXTRACT_SYSTEM,
       prompt: parsed.data.text,
