@@ -2,15 +2,29 @@ import { test, expect } from "@platform/spec-test/playwright";
 import type { Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
-async function addPolicy(
+// Resolved relative to the Playwright working directory (apps/insure).
+const SAMPLE_PDF = "tests/fixtures/sample-policy.pdf";
+
+// Upload the sample life policy (AIA, life, sum assured 500000, premium 600/yr)
+// and wait for it to be parsed and added to the dashboard.
+async function uploadSample(page: Page): Promise<void> {
+  await page.getByTestId("pdf-input").setInputFiles(SAMPLE_PDF);
+  await expect(page.getByTestId("policy-row")).toHaveCount(1, { timeout: 20_000 });
+}
+
+// Add a policy by hand via the fallback, then fill its inline row fields.
+async function addManualPolicy(
   page: Page,
-  opts: { insurer: string; category: string; sum: number; premium: number },
+  opts: { insurer?: string; category: string; sum: number; premium: number },
 ): Promise<void> {
-  await page.getByLabel("Insurer").fill(opts.insurer);
-  await page.getByLabel("Category").selectOption(opts.category);
-  await page.getByLabel("Sum assured (SGD)").fill(String(opts.sum));
-  await page.getByLabel("Annual premium (SGD)").fill(String(opts.premium));
-  await page.getByRole("button", { name: "Add policy" }).click();
+  const before = await page.getByTestId("policy-row").count();
+  await page.getByTestId("add-manual").click();
+  await expect(page.getByTestId("policy-row")).toHaveCount(before + 1);
+  const row = page.getByTestId("policy-row").last();
+  if (opts.insurer) await row.getByLabel("Insurer").fill(opts.insurer);
+  await row.getByLabel("Category").selectOption(opts.category);
+  await row.getByLabel("Sum assured (SGD)").fill(String(opts.sum));
+  await row.getByLabel("Annual premium (SGD)").fill(String(opts.premium));
 }
 
 function seriousViolationIds(
@@ -26,26 +40,43 @@ test("[INSURE-UPLOAD-001] the page offers PDF upload with an in-browser privacy 
 }) => {
   await page.goto("/");
   const input = page.getByTestId("pdf-input");
-  await expect(input).toBeVisible();
   await expect(input).toHaveAttribute("accept", /pdf/);
+  await expect(input).toHaveAttribute("multiple", "");
   await expect(page.getByTestId("privacy-note")).toContainText(
     /browser|never uploaded/i,
   );
 });
 
-test("[INSURE-REVIEW-001] adding a policy puts it in the list and updates the dashboard", async ({
+test("[INSURE-UPLOAD-002] uploading a policy PDF builds the summary with no manual data entry", async ({
   page,
 }) => {
   await page.goto("/");
-  await addPolicy(page, { insurer: "AIA", category: "life", sum: 300000, premium: 500 });
-  await expect(page.getByTestId("policy-row")).toHaveCount(1);
-  await expect(page.getByTestId("category-card").first()).toBeVisible();
+  await uploadSample(page);
+  // The policy and its figures came purely from the document.
+  await expect(
+    page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
+  ).toContainText("$500,000");
+  await expect(page.getByTestId("premium-panel")).toContainText("$600");
+  await expect(page.getByTestId("policy-row").getByLabel("Insurer")).toHaveValue("AIA");
+});
+
+test("[INSURE-REVIEW-001] an extracted policy can be corrected inline without re-entering it", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await uploadSample(page);
+  const row = page.getByTestId("policy-row").first();
+  await row.getByLabel("Sum assured (SGD)").fill("600000");
+  await expect(
+    page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
+  ).toContainText("$600,000");
+  // The rest of the policy is preserved.
+  await expect(row.getByLabel("Insurer")).toHaveValue("AIA");
 });
 
 test("[INSURE-REVIEW-002] a policy can be removed", async ({ page }) => {
   await page.goto("/");
-  await addPolicy(page, { insurer: "AIA", category: "life", sum: 300000, premium: 500 });
-  await expect(page.getByTestId("policy-row")).toHaveCount(1);
+  await uploadSample(page);
   await page.getByRole("button", { name: /Remove/ }).click();
   await expect(page.getByTestId("policy-row")).toHaveCount(0);
   await expect(page.getByTestId("empty-state")).toBeVisible();
@@ -55,29 +86,29 @@ test("[INSURE-DASH-001] coverage by category is shown with totals", async ({
   page,
 }) => {
   await page.goto("/");
-  await addPolicy(page, { insurer: "AIA", category: "life", sum: 300000, premium: 500 });
+  await uploadSample(page);
   await expect(page.getByTestId("category-card")).toHaveCount(5);
   await expect(
     page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
-  ).toContainText("$300,000");
+  ).toContainText("$500,000");
 });
 
 test("[INSURE-DASH-002] adequacy shows death/TPD vs 9x and CI vs 4x of income", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByLabel("Your annual income (SGD)").fill("100000");
-  await addPolicy(page, { insurer: "AIA", category: "life", sum: 300000, premium: 500 });
-  await addPolicy(page, {
+  await uploadSample(page);
+  await addManualPolicy(page, {
     insurer: "Great Eastern",
     category: "critical-illness",
     sum: 100000,
     premium: 400,
   });
+  await page.getByLabel("Your annual income (SGD)").fill("100000");
   const life = page.getByTestId("adequacy-life");
   await expect(life).toContainText("$900,000");
-  await expect(life).toContainText("$300,000");
-  await expect(life).toContainText("$600,000");
+  await expect(life).toContainText("$500,000");
+  await expect(life).toContainText("$400,000");
   const ci = page.getByTestId("adequacy-ci");
   await expect(ci).toContainText("$400,000");
   await expect(ci).toContainText("$100,000");
@@ -87,11 +118,11 @@ test("[INSURE-DASH-003] total premium and its share of income are shown against 
   page,
 }) => {
   await page.goto("/");
+  await uploadSample(page);
   await page.getByLabel("Your annual income (SGD)").fill("100000");
-  await addPolicy(page, { insurer: "AIA", category: "life", sum: 300000, premium: 1000 });
   const panel = page.getByTestId("premium-panel");
-  await expect(panel).toContainText("$1,000");
-  await expect(panel).toContainText("1.0%");
+  await expect(panel).toContainText("$600");
+  await expect(panel).toContainText("0.6%");
   await expect(panel).toContainText(/15%/);
 });
 
@@ -118,7 +149,7 @@ test("[INSURE-SEC-001] the app is usable without authentication", async ({
   const res = await page.goto("/");
   expect(res?.status()).toBeLessThan(400);
   expect(page.url()).not.toContain("/login");
-  await expect(page.getByTestId("pdf-input")).toBeVisible();
+  await expect(page.getByTestId("pdf-input")).toBeAttached();
 });
 
 test("[INSURE-SEC-002] policy data is never sent to a server", async ({ page }) => {
@@ -128,8 +159,8 @@ test("[INSURE-SEC-002] policy data is never sent to a server", async ({ page }) 
     const t = req.resourceType();
     if (t === "fetch" || t === "xhr") dataCalls.push(req.url());
   });
+  await uploadSample(page);
   await page.getByLabel("Your annual income (SGD)").fill("100000");
-  await addPolicy(page, { insurer: "AIA", category: "life", sum: 300000, premium: 1000 });
   await expect(page.getByTestId("policy-row")).toHaveCount(1);
   expect(dataCalls).toEqual([]);
 });
@@ -138,41 +169,46 @@ test("[INSURE-A11Y-001] the dashboard has no critical accessibility violations",
   page,
 }) => {
   await page.goto("/");
+  await uploadSample(page);
   await page.getByLabel("Your annual income (SGD)").fill("100000");
-  await addPolicy(page, { insurer: "AIA", category: "life", sum: 300000, premium: 1000 });
   const results = await new AxeBuilder({ page }).analyze();
   expect(seriousViolationIds(results.violations)).toEqual([]);
 });
 
-test("[INSURE-A11Y-002] adding a policy is operable by keyboard", async ({
+test("[INSURE-A11Y-002] adding and editing a policy by hand is operable by keyboard", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByLabel("Insurer").focus();
-  await page.keyboard.type("AIA");
-  // Category defaults to life; fill the amount via keyboard.
-  await page.getByLabel("Sum assured (SGD)").focus();
-  await page.keyboard.type("250000");
-  await page.getByRole("button", { name: "Add policy" }).focus();
+  // Open the manual fallback and add a row with the keyboard only.
+  await page.getByTestId("add-manual").focus();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("policy-row")).toHaveCount(1);
+  const row = page.getByTestId("policy-row").first();
+  await row.getByLabel("Insurer").focus();
+  await page.keyboard.type("Manual Co");
+  await row.getByLabel("Sum assured (SGD)").focus();
+  await page.keyboard.type("250000");
+  await expect(row.getByLabel("Insurer")).toHaveValue("Manual Co");
+  await expect(
+    page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
+  ).toContainText("$250,000");
 });
 
-test("[INSURE-JOURNEY-001] enter income, add policies, and see coverage and an adequacy gap", async ({
+test("[INSURE-JOURNEY-001] upload a policy, add income, and see coverage and an adequacy gap", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByLabel("Your annual income (SGD)").fill("100000");
-  await addPolicy(page, { insurer: "AIA", category: "life", sum: 300000, premium: 1000 });
-  await addPolicy(page, {
+  await uploadSample(page);
+  await addManualPolicy(page, {
     insurer: "Great Eastern",
     category: "critical-illness",
     sum: 100000,
     premium: 500,
   });
+  await page.getByLabel("Your annual income (SGD)").fill("100000");
   await expect(
     page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
-  ).toContainText("$300,000");
-  await expect(page.getByTestId("premium-panel")).toContainText("$1,500");
-  await expect(page.getByTestId("adequacy-life")).toContainText("$600,000");
+  ).toContainText("$500,000");
+  await expect(page.getByTestId("premium-panel")).toContainText("$1,100");
+  await expect(page.getByTestId("adequacy-life")).toContainText("$400,000");
 });

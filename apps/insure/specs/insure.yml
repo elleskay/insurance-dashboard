@@ -68,28 +68,38 @@ requirements:
     category: ui
     severity: high
     given: A visitor on the dashboard
-    when: They look at the add-policy area
-    then: A file input that accepts PDFs is shown, with a clear note that documents are processed in the browser and never uploaded
+    when: They look at the upload area
+    then: A file input that accepts one or more PDFs is shown, with a clear note that documents are processed in the browser and never uploaded
     tags: [upload, privacy]
 
-  - id: INSURE-REVIEW-001
-    title: Adding a policy puts it in the policy list and updates the dashboard
+  - id: INSURE-UPLOAD-002
+    title: Uploading a policy PDF builds the summary with no manual data entry
     category: functional
     severity: critical
-    given: A visitor adding a policy via the form (insurer, category, sum assured, premium)
-    when: They submit it
-    then: The policy appears in the policy list and the dashboard totals update
+    given: A visitor with a policy PDF and an empty dashboard
+    when: They upload the PDF
+    then: The app extracts the category, sum assured and premium from the document and adds the policy to the dashboard automatically, without the visitor typing any policy values
+    tags: [upload, extract, journey]
+
+  - id: INSURE-REVIEW-001
+    title: An extracted policy can be corrected inline without re-entering it
+    category: functional
+    severity: critical
+    given: A policy that was added from an uploaded document
+    when: The visitor edits one of its fields (for example the sum assured) in the policy list
+    then: Only that field changes and the dashboard totals update, with the rest of the policy preserved
     tags: [review, policies]
+    depends_on: [INSURE-UPLOAD-002]
 
   - id: INSURE-REVIEW-002
     title: A policy can be removed
     category: functional
     severity: medium
-    given: A policy already added
+    given: A policy already on the dashboard
     when: The visitor removes it
     then: It disappears from the policy list and the totals update
     tags: [review, policies]
-    depends_on: [INSURE-REVIEW-001]
+    depends_on: [INSURE-UPLOAD-002]
 
   # ---------------------------------------------------------------------------
   # DASHBOARD (Playwright)
@@ -102,27 +112,27 @@ requirements:
     when: The dashboard renders
     then: Coverage-by-category cards show the categories (hospitalisation, life, critical illness, disability income, personal accident) with their summed cover
     tags: [dashboard]
-    depends_on: [INSURE-REVIEW-001]
+    depends_on: [INSURE-UPLOAD-002]
 
   - id: INSURE-DASH-002
     title: Adequacy shows death/TPD vs 9x and critical illness vs 4x of income
     category: functional
     severity: critical
-    given: An annual income entered and some life and critical-illness cover
+    given: Life and critical-illness cover on the dashboard and an optional annual income provided
     when: The adequacy section renders
     then: It shows the target, the covered amount, and the gap (or met status) for death/TPD against 9x income and critical illness against 4x income
     tags: [dashboard, adequacy]
-    depends_on: [INSURE-REVIEW-001]
+    depends_on: [INSURE-UPLOAD-002]
 
   - id: INSURE-DASH-003
     title: Total premium and its share of income are shown against the guideline
     category: ui
     severity: high
-    given: Policies with premiums and an annual income
+    given: Policies with premiums and an optional annual income
     when: The premium panel renders
     then: It shows the total annual premium and its percentage of income, referencing the ~15% guideline
     tags: [dashboard, premium]
-    depends_on: [INSURE-REVIEW-001]
+    depends_on: [INSURE-UPLOAD-002]
 
   - id: INSURE-DASH-004
     title: An empty state guides the user before any policy exists
@@ -130,7 +140,7 @@ requirements:
     severity: medium
     given: A first visit with no policies
     when: The dashboard renders
-    then: A helpful empty state explains how to upload or add a policy instead of showing blank or zeroed charts
+    then: A helpful empty state invites the visitor to upload a policy document instead of showing blank or zeroed charts
     tags: [dashboard, empty-state]
 
   # ---------------------------------------------------------------------------
@@ -158,9 +168,9 @@ requirements:
     title: Policy data is never sent to a server
     category: security
     severity: critical
-    given: A visitor adding a policy and entering income
+    given: A visitor uploading a policy document and entering income
     when: Network activity is observed during these actions
-    then: No request carries the policy figures or document content to the server; all processing stays in the browser
+    then: No request carries the policy figures or document content to the server; the PDF is parsed and all processing stays in the browser
     tags: [privacy, pdpa]
 
   # ---------------------------------------------------------------------------
@@ -176,23 +186,23 @@ requirements:
     tags: [a11y, axe]
 
   - id: INSURE-A11Y-002
-    title: Adding a policy is operable by keyboard
+    title: Adding and editing a policy by hand is operable by keyboard
     category: a11y
     severity: medium
-    given: A keyboard-only visitor
-    when: They tab through the add-policy form and submit
-    then: They can add a policy without a pointer
+    given: A keyboard-only visitor whose document did not parse
+    when: They use the manual fallback to add a policy and edit its fields
+    then: They can add and edit a policy without a pointer
     tags: [a11y, keyboard]
 
   # ---------------------------------------------------------------------------
   # JOURNEY (Playwright)
   # ---------------------------------------------------------------------------
   - id: INSURE-JOURNEY-001
-    title: Enter income, add policies, and see coverage and an adequacy gap
+    title: Upload a policy, optionally add income, and see coverage and an adequacy gap
     category: functional
     severity: critical
     given: A new visitor
-    when: They enter their annual income and add a life policy and a critical-illness policy
+    when: They upload a life policy document, add a critical-illness policy, and enter their annual income
     then: The dashboard shows coverage by category, the total premium, and an adequacy comparison with a gap or met status, all in one unbroken flow
     tags: [journey, e2e]
-    depends_on: [INSURE-REVIEW-001, INSURE-DASH-001, INSURE-DASH-002]
+    depends_on: [INSURE-UPLOAD-002, INSURE-DASH-001, INSURE-DASH-002]

@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PdfUpload } from "@/components/PdfUpload";
+import { PdfUpload, type ParsedUpload } from "@/components/PdfUpload";
 import { TiltCard } from "@/components/TiltCard";
 import {
   CATEGORIES,
   CATEGORY_LABELS,
   type Category,
-  type ExtractedPolicy,
   type Policy,
 } from "@/lib/insure/types";
 import {
@@ -51,36 +50,24 @@ const CATEGORY_COLOR: Record<Category, string> = {
   "personal-accident": "#f59e0b",
 };
 
-interface Draft {
-  insurer: string;
-  name: string;
-  category: Category;
-  sumAssured: string;
-  annualPremium: string;
-}
-const EMPTY_DRAFT: Draft = {
-  insurer: "",
-  name: "",
-  category: "life",
-  sumAssured: "",
-  annualPremium: "",
-};
-
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return "p" + Date.now() + Math.round(Math.random() * 1e6);
 }
 
+interface StoredPolicy extends Policy {
+  needsReview?: boolean;
+}
+
 export function Dashboard() {
-  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [policies, setPolicies] = useState<StoredPolicy[]>([]);
   const [income, setIncome] = useState<number>(0);
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as { policies?: Policy[]; income?: number };
+        const parsed = JSON.parse(raw) as { policies?: StoredPolicy[]; income?: number };
         if (Array.isArray(parsed.policies)) setPolicies(parsed.policies);
         if (typeof parsed.income === "number") setIncome(parsed.income);
       }
@@ -97,33 +84,38 @@ export function Dashboard() {
     }
   }, [policies, income]);
 
-  function prefill(extracted: ExtractedPolicy) {
-    setDraft((d) => ({
-      ...d,
-      insurer: extracted.insurer ?? d.insurer,
-      name: extracted.name ?? d.name,
-      category: extracted.category ?? d.category,
-      sumAssured:
-        extracted.sumAssured !== undefined ? String(extracted.sumAssured) : d.sumAssured,
-      annualPremium:
-        extracted.annualPremium !== undefined ? String(extracted.annualPremium) : d.annualPremium,
+  function addParsed(results: ParsedUpload[]) {
+    const added: StoredPolicy[] = results.map((r) => ({
+      id: newId(),
+      insurer: r.extracted.insurer ?? "Unknown insurer",
+      name: r.extracted.name ?? r.fileName.replace(/\.pdf$/i, ""),
+      category: r.extracted.category ?? "life",
+      sumAssured: r.extracted.sumAssured ?? 0,
+      annualPremium: r.extracted.annualPremium ?? 0,
+      needsReview: r.missing.length > 0,
     }));
+    setPolicies((p) => [...p, ...added]);
   }
 
-  function addPolicy(e: React.FormEvent) {
-    e.preventDefault();
+  function addManual() {
     setPolicies((p) => [
       ...p,
       {
         id: newId(),
-        insurer: draft.insurer.trim() || "Unnamed insurer",
-        name: draft.name.trim(),
-        category: draft.category,
-        sumAssured: Number(draft.sumAssured) || 0,
-        annualPremium: Number(draft.annualPremium) || 0,
+        insurer: "",
+        name: "",
+        category: "life",
+        sumAssured: 0,
+        annualPremium: 0,
+        needsReview: true,
       },
     ]);
-    setDraft(EMPTY_DRAFT);
+  }
+
+  function updatePolicy(id: string, patch: Partial<StoredPolicy>) {
+    setPolicies((p) =>
+      p.map((x) => (x.id === id ? { ...x, ...patch, needsReview: false } : x)),
+    );
   }
 
   function removePolicy(id: string) {
@@ -171,6 +163,11 @@ export function Dashboard() {
           <span className="block text-heading">Your protection,</span>
           <span className="block text-gradient">in focus.</span>
         </h1>
+        <p className="max-w-2xl text-lg text-muted-foreground">
+          Upload your policy documents and we build the summary for you: coverage
+          by category, total premiums, and where your protection may fall short.
+          Nothing to type, nothing leaves your browser.
+        </p>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <KpiTile label="Total cover" value={sgd(totalCover)} sub={`across ${policies.length} ${policies.length === 1 ? "policy" : "policies"}`} />
@@ -182,144 +179,112 @@ export function Dashboard() {
           />
           <KpiTile
             label="Death / TPD gap"
-            value={income > 0 ? (lifeAdq.gap > 0 ? sgd(lifeAdq.gap) : "Covered") : "—"}
+            value={income > 0 ? (lifeAdq.gap > 0 ? sgd(lifeAdq.gap) : "Covered") : "n/a"}
             sub={income > 0 ? "vs 9x income" : "set income"}
             subClass={income > 0 ? (lifeAdq.gap > 0 ? "text-danger" : "text-ok") : "text-muted-foreground"}
           />
           <KpiTile
             label="Critical illness gap"
-            value={income > 0 ? (ciAdq.gap > 0 ? sgd(ciAdq.gap) : "Covered") : "—"}
+            value={income > 0 ? (ciAdq.gap > 0 ? sgd(ciAdq.gap) : "Covered") : "n/a"}
             sub={income > 0 ? "vs 4x income" : "set income"}
             subClass={income > 0 ? (ciAdq.gap > 0 ? "text-danger" : "text-ok") : "text-muted-foreground"}
           />
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[0.95fr_1.45fr]">
-        {/* Inputs */}
-        <section className="flex flex-col gap-5 rounded-3xl border border-border bg-card p-6 shadow-card">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="income" className="font-semibold text-heading">
-              Your annual income (SGD)
-            </label>
-            <input
-              id="income"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              value={income === 0 ? "" : income}
-              onChange={(e) => setIncome(Number(e.target.value) || 0)}
-              placeholder="e.g. 80000"
-              className="field-input"
-            />
-            <p className="text-sm text-muted-foreground">
-              Used to compare your cover against the benchmarks. Stored only in this browser.
-            </p>
-          </div>
+      {/* Upload (always the primary action) */}
+      <section className="rounded-3xl border border-border bg-card p-6 shadow-card">
+        <PdfUpload onParsed={addParsed} />
+      </section>
 
-          <hr className="border-border" />
-          <PdfUpload onPrefill={prefill} />
-
-          <form onSubmit={addPolicy} className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-heading">Add or review a policy</h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Insurer">
-                <input type="text" value={draft.insurer} onChange={(e) => setDraft({ ...draft, insurer: e.target.value })} className="field-input" />
-              </Field>
-              <Field label="Policy name (optional)">
-                <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="field-input" />
-              </Field>
-              <Field label="Category">
-                <select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as Category })} className="field-input">
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {CATEGORY_LABELS[c]}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Sum assured (SGD)">
-                <input type="number" inputMode="numeric" min={0} value={draft.sumAssured} onChange={(e) => setDraft({ ...draft, sumAssured: e.target.value })} className="field-input" />
-              </Field>
-              <Field label="Annual premium (SGD)">
-                <input type="number" inputMode="numeric" min={0} value={draft.annualPremium} onChange={(e) => setDraft({ ...draft, annualPremium: e.target.value })} className="field-input" />
-              </Field>
-            </div>
-            <button type="submit" className="btn-gradient w-fit rounded-xl px-6 py-2.5 font-semibold shadow-card transition">
-              Add policy
-            </button>
-          </form>
-        </section>
-
-        {/* Results */}
-        <div className="flex flex-col gap-6">
-          {!hasPolicies ? (
-            <section
-              data-testid="empty-state"
-              className="flex h-full flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border bg-card/80 p-10 text-center backdrop-blur"
+      {!hasPolicies ? (
+        <section
+          data-testid="empty-state"
+          className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border bg-card/80 p-10 text-center backdrop-blur"
+        >
+          <h2 className="text-lg font-semibold text-heading">Your summary appears here</h2>
+          <p className="max-w-md text-muted-foreground">
+            Upload a policy PDF above and your coverage, premiums and protection
+            gaps fill in automatically. No document handy?{" "}
+            <button
+              type="button"
+              data-testid="add-manual"
+              onClick={addManual}
+              className="font-semibold text-primary underline-offset-2 hover:underline"
             >
-              <span aria-hidden="true" className="btn-gradient grid h-12 w-12 place-items-center rounded-2xl text-white">
-                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </span>
-              <h2 className="text-lg font-semibold text-heading">No policies yet</h2>
-              <p className="max-w-sm text-muted-foreground">
-                Upload a policy PDF or add one by hand on the left. Your coverage summary and adequacy check appear here.
-              </p>
+              Add a policy by hand
+            </button>
+            .
+          </p>
+        </section>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <section className="flex flex-col gap-5 rounded-3xl border border-border bg-card p-6 shadow-card">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-heading">Coverage by category</h2>
+                  <p className="text-sm text-muted-foreground">{sgd(totalCover)} total cover</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
+                <Donut segments={donutSegments} total={totalCover} />
+                <div className="grid grid-cols-1 gap-2.5">
+                  {CATEGORIES.map((c) => (
+                    <TiltCard
+                      key={c}
+                      testid="category-card"
+                      max={3}
+                      className="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2.5"
+                    >
+                      <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CATEGORY_COLOR[c] }} />
+                      <span className="flex-1 text-sm text-foreground">{CATEGORY_LABELS[c]}</span>
+                      <span className="text-base font-bold text-heading">
+                        {c === "hospitalisation" && totals[c] === 0 ? "As charged" : sgd(totals[c])}
+                      </span>
+                    </TiltCard>
+                  ))}
+                </div>
+              </div>
             </section>
-          ) : (
-            <>
-              <section className="flex flex-col gap-5 rounded-3xl border border-border bg-card p-6 shadow-card">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-heading">Coverage by category</h2>
-                    <p className="text-sm text-muted-foreground">{sgd(totalCover)} total cover</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPolicies([]);
-                      setIncome(0);
-                    }}
-                    className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:border-danger hover:text-danger"
-                  >
-                    Clear all
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
-                  <Donut segments={donutSegments} total={totalCover} />
-                  <div className="grid grid-cols-1 gap-2.5">
-                    {CATEGORIES.map((c) => (
-                      <TiltCard
-                        key={c}
-                        testid="category-card"
-                        max={3}
-                        className="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2.5"
-                      >
-                        <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CATEGORY_COLOR[c] }} />
-                        <span className="flex-1 text-sm text-foreground">{CATEGORY_LABELS[c]}</span>
-                        <span className="text-base font-bold text-heading">
-                          {c === "hospitalisation" && totals[c] === 0 ? "As charged" : sgd(totals[c])}
-                        </span>
-                      </TiltCard>
-                    ))}
-                  </div>
-                </div>
-              </section>
 
-              <section className="flex flex-col gap-3" data-testid="adequacy">
+            <section className="flex flex-col gap-4" data-testid="adequacy">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-heading">Are you covered enough?</h2>
+                <label className="flex items-center gap-2 text-sm font-medium text-heading">
+                  <span className="whitespace-nowrap">Your annual income (SGD)</span>
+                  <input
+                    id="income"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={income === 0 ? "" : income}
+                    onChange={(e) => setIncome(Number(e.target.value) || 0)}
+                    placeholder="optional"
+                    className="field-input w-32"
+                  />
+                </label>
+              </div>
+              {income > 0 ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <AdequacyCard testid="adequacy-life" title="Death and TPD" benchmark={`${DEATH_TPD_MULTIPLE}x annual income`} adq={lifeAdq} />
                   <AdequacyCard testid="adequacy-ci" title="Critical illness" benchmark={`${CI_MULTIPLE}x annual income`} adq={ciAdq} />
                 </div>
-              </section>
+              ) : (
+                <p
+                  data-testid="adequacy-hint"
+                  className="rounded-2xl border border-dashed border-border bg-card/80 p-5 text-sm text-muted-foreground"
+                >
+                  Add your annual income above to see how your death/TPD and
+                  critical-illness cover compare with the LIA and MoneySense rules
+                  of thumb (9x income for death and TPD, 4x for critical illness).
+                </p>
+              )}
 
-              <TiltCard testid="premium-panel" max={3} className="rounded-3xl border border-border bg-card p-6 shadow-card">
+              <TiltCard testid="premium-panel" max={3} className="rounded-2xl border border-border bg-card p-5 shadow-card">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-heading">Premiums</h2>
+                    <h3 className="font-semibold text-heading">Premiums</h3>
                     <p className="mt-1 text-sm text-muted-foreground">Total annual premium</p>
                     <p className="text-2xl font-bold text-heading">{sgd(premium)}</p>
                   </div>
@@ -337,52 +302,123 @@ export function Dashboard() {
                   Guideline: protection premiums within about 15% of take-home pay.
                 </p>
               </TiltCard>
-            </>
-          )}
-        </div>
-      </div>
-
-      {hasPolicies ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold text-heading">Your policies</h2>
-          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-card">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-surface font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Insurer</th>
-                  <th className="px-4 py-3 font-medium">Category</th>
-                  <th className="px-4 py-3 font-medium">Sum assured</th>
-                  <th className="px-4 py-3 font-medium">Annual premium</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {policies.map((p) => (
-                  <tr key={p.id} data-testid="policy-row" className="border-t border-border">
-                    <td className="px-4 py-3 text-foreground">
-                      {p.insurer}
-                      {p.name ? <span className="text-muted-foreground"> ({p.name})</span> : null}
-                    </td>
-                    <td className="px-4 py-3 text-foreground">{CATEGORY_LABELS[p.category]}</td>
-                    <td className="px-4 py-3 font-medium text-foreground">{sgd(p.sumAssured)}</td>
-                    <td className="px-4 py-3 text-foreground">{sgd(p.annualPremium)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => removePolicy(p.id)}
-                        aria-label={`Remove ${p.insurer} ${CATEGORY_LABELS[p.category]} policy`}
-                        className="rounded-md px-2 py-1 font-medium text-danger hover:bg-danger-soft"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            </section>
           </div>
-        </section>
-      ) : null}
+
+          {/* Editable policy list */}
+          <section className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-heading">Your policies</h2>
+                <p className="text-sm text-muted-foreground">
+                  Pulled from your documents. Anything we misread, fix it inline.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPolicies([]);
+                  setIncome(0);
+                }}
+                className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:border-danger hover:text-danger"
+              >
+                Clear all
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-3xl border border-border bg-card shadow-card">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="bg-surface font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Insurer</th>
+                    <th className="px-4 py-3 font-medium">Category</th>
+                    <th className="px-4 py-3 font-medium">Sum assured</th>
+                    <th className="px-4 py-3 font-medium">Annual premium</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {policies.map((p) => (
+                    <tr
+                      key={p.id}
+                      data-testid="policy-row"
+                      className={`border-t border-border ${p.needsReview ? "bg-warn-soft/40" : ""}`}
+                    >
+                      <td className="px-4 py-2.5">
+                        <input
+                          aria-label="Insurer"
+                          type="text"
+                          value={p.insurer}
+                          placeholder="Insurer"
+                          onChange={(e) => updatePolicy(p.id, { insurer: e.target.value })}
+                          className="field-input"
+                        />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <select
+                          aria-label="Category"
+                          value={p.category}
+                          onChange={(e) => updatePolicy(p.id, { category: e.target.value as Category })}
+                          className="field-input"
+                        >
+                          {CATEGORIES.map((c) => (
+                            <option key={c} value={c}>
+                              {CATEGORY_LABELS[c]}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <input
+                          aria-label="Sum assured (SGD)"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          value={p.sumAssured === 0 ? "" : p.sumAssured}
+                          placeholder="0"
+                          onChange={(e) => updatePolicy(p.id, { sumAssured: Number(e.target.value) || 0 })}
+                          className="field-input w-32"
+                        />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <input
+                          aria-label="Annual premium (SGD)"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          value={p.annualPremium === 0 ? "" : p.annualPremium}
+                          placeholder="0"
+                          onChange={(e) => updatePolicy(p.id, { annualPremium: Number(e.target.value) || 0 })}
+                          className="field-input w-32"
+                        />
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removePolicy(p.id)}
+                          aria-label={`Remove ${p.insurer || "this"} policy`}
+                          className="rounded-md px-2 py-1 font-medium text-danger hover:bg-danger-soft"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <button
+              type="button"
+              data-testid="add-manual"
+              onClick={addManual}
+              className="w-fit rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
+            >
+              Add a policy by hand
+            </button>
+          </section>
+        </>
+      )}
     </div>
   );
 }
@@ -404,15 +440,6 @@ function KpiTile({
       <span className="text-2xl font-bold leading-none text-heading sm:text-[1.75rem]">{value}</span>
       {sub ? <span className={`text-xs font-medium ${subClass}`}>{sub}</span> : null}
     </TiltCard>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1 text-sm font-medium text-heading">
-      {label}
-      {children}
-    </label>
   );
 }
 
