@@ -23,6 +23,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Build @platform/spec-test (dist is gitignored)
+        working-directory: packages/spec-test
+        run: npm run build
       - name: Resolve Playwright version
         id: pw
         working-directory: apps/insure
