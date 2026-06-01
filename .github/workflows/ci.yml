@@ -21,6 +21,29 @@ jobs:
         with:
           args: -color
 
+  # Detect whether this change touches code. Docs/asset-only commits skip the
+  # expensive build, synth, and spec-test self-test jobs below. Typecheck/lint/
+  # test still run so the cheap checks stay green on every change.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!LICENSE'
+              - '!**/*.png'
+              - '!**/*.svg'
+              - '!**/*.ico'
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
@@ -48,7 +71,8 @@ jobs:
   build:
     name: Build demo (Next.js + OpenNext)
     runs-on: ubuntu-latest
-    needs: [typecheck, lint]
+    needs: [changes, typecheck, lint]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -56,6 +80,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Cache Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: apps/_demo/.next/cache
+          key: nextjs-demo-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/_demo/**/*.[jt]s', 'apps/_demo/**/*.[jt]sx') }}
+          restore-keys: |
+            nextjs-demo-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
       - name: Next.js build
         working-directory: apps/_demo
         env:
@@ -80,7 +111,8 @@ jobs:
   cdk-synth:
     name: CDK synth (proves construct works against demo)
     runs-on: ubuntu-latest
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -122,6 +154,8 @@ jobs:
   spec-test:
     name: spec-test (build + gate self-test)
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6

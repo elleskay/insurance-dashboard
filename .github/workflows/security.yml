@@ -16,6 +16,9 @@ permissions:
 jobs:
   codeql:
     name: CodeQL
+    # Runs on pull requests and the weekly schedule. Skipped on direct pushes to
+    # main, since a merged PR was already scanned; avoids a redundant second run.
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -47,5 +50,6 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: npm
       - run: npm audit --audit-level=high
         continue-on-error: true

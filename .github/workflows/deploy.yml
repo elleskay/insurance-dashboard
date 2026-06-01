@@ -104,6 +104,14 @@ jobs:
             echo "::notice::No db/seed-demo.ts found, skipping seed step"
           fi
 
+      - name: Cache Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.APP_DIR }}/.next/cache
+          key: nextjs-deploy-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            nextjs-deploy-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
       - name: Build Next.js with OpenNext
         working-directory: ${{ env.APP_DIR }}
         env:
