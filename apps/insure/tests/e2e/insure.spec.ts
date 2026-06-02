@@ -22,6 +22,35 @@ async function mockExtract(
   );
 }
 
+// Stub the advisor route so e2e is deterministic and offline. The real route
+// runs a LangGraph self-correction loop against an LLM; here we return a fixed,
+// already-grounded response.
+async function mockAdvise(
+  page: Page,
+  body: Record<string, unknown> = {
+    recommendations: [
+      {
+        id: "life-0",
+        category: "life",
+        title: "Close your death and TPD gap",
+        detail: "Your life cover is below the 9x-income benchmark.",
+        severity: "high",
+        citedGap: 400000,
+      },
+    ],
+    needsReview: false,
+    confidence: 1,
+  },
+): Promise<void> {
+  await page.route("**/api/advise", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
 // Upload the sample life policy and wait for it to be added to the dashboard.
 async function uploadSample(page: Page): Promise<void> {
   await mockExtract(page);
@@ -224,4 +253,46 @@ test("[INSURE-JOURNEY-001] upload a policy, add income, and see coverage and an 
   ).toContainText("$500,000");
   await expect(page.getByTestId("premium-panel")).toContainText("$1,100");
   await expect(page.getByTestId("adequacy-life")).toContainText("$400,000");
+});
+
+test("[INSURE-ADVISOR-003] a user can request advice and see recommendations tied to their actual gaps", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await uploadSample(page); // life cover 500,000 from the document
+  await mockAdvise(page);
+  await page.getByLabel("Your annual income (SGD)").fill("100000");
+  // One unbroken flow: upload, set income, request advice.
+  await page.getByTestId("get-advice").click();
+  const item = page.getByTestId("advice-item").first();
+  await expect(item).toBeVisible();
+  await expect(item).toContainText("Close your death and TPD gap");
+  // The suggestion references the user's real computed gap (900k target - 500k cover).
+  await expect(item).toContainText("$400,000");
+});
+
+test("[INSURE-ADVISOR-004] advice that could not be verified is flagged for review, not shown as certain", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await uploadSample(page);
+  await mockAdvise(page, {
+    recommendations: [
+      {
+        id: "life-0",
+        category: "life",
+        title: "Close your death and TPD gap",
+        detail: "Your life cover is below the benchmark.",
+        severity: "high",
+        citedGap: 400000,
+      },
+    ],
+    needsReview: true,
+    confidence: 0.5,
+  });
+  await page.getByLabel("Your annual income (SGD)").fill("100000");
+  await page.getByTestId("get-advice").click();
+  const review = page.getByTestId("advice-review");
+  await expect(review).toBeVisible();
+  await expect(review).toContainText(/set aside|could not match|review|adviser/i);
 });

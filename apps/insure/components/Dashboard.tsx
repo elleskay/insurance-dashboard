@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PdfUpload, type ParsedUpload } from "@/components/PdfUpload";
 import { TiltCard } from "@/components/TiltCard";
+import { Advisor } from "@/components/Advisor";
 import {
   CATEGORIES,
   CATEGORY_LABELS,
@@ -304,6 +305,9 @@ export function Dashboard() {
               </TiltCard>
             </section>
           </div>
+
+          {/* AI adequacy advisor (grounded, self-correcting LangGraph graph) */}
+          <Advisor policies={policies} income={income} />
 
           {/* Editable policy list */}
           <section className="flex flex-col gap-3">

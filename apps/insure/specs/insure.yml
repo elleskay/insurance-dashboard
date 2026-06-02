@@ -144,6 +144,47 @@ requirements:
     tags: [dashboard, empty-state]
 
   # ---------------------------------------------------------------------------
+  # ADVISOR: grounded, self-correcting LangGraph recommendations
+  # (Vitest for the grounding logic, Playwright for the panel + journey)
+  # ---------------------------------------------------------------------------
+  - id: INSURE-ADVISOR-001
+    title: Every recommendation is grounded in the computed coverage gaps
+    category: data
+    severity: critical
+    given: Recommendations where one cites a dollar gap that does not match the figure computed from the policies and income
+    when: The grounding check runs against the computed facts
+    then: The recommendation citing the wrong figure is flagged as ungrounded while correctly cited ones pass
+    tags: [advisor, grounding, safety]
+
+  - id: INSURE-ADVISOR-002
+    title: The advisor revises ungrounded drafts then flags anything it cannot verify
+    category: data
+    severity: high
+    given: A draft that still has grounding issues
+    when: The graph decides whether to revise and then summarises the result
+    then: It routes back to a revision while issues remain and attempts are under the cap, and on finalising it drops unverifiable recommendations and marks the result as needing review
+    tags: [advisor, self-correction, loop]
+
+  - id: INSURE-ADVISOR-003
+    title: A user can request advice and see recommendations tied to their actual gaps
+    category: functional
+    severity: critical
+    given: A dashboard with policies and an annual income entered
+    when: The user requests personalised advice
+    then: The app calls the advisor service and shows recommendations that reference the user's real coverage gaps, in one flow from upload to advice
+    tags: [advisor, journey, e2e]
+    depends_on: [INSURE-UPLOAD-002, INSURE-DASH-002]
+
+  - id: INSURE-ADVISOR-004
+    title: Advice that could not be verified is flagged for review, not shown as certain
+    category: ui
+    severity: high
+    given: An advice response where some suggestions were set aside as unverifiable
+    when: The advice panel renders
+    then: A visible review note tells the user some suggestions need checking, rather than presenting every suggestion as confirmed
+    tags: [advisor, trust, review]
+
+  # ---------------------------------------------------------------------------
   # TRUST + SAFETY (Playwright)
   # ---------------------------------------------------------------------------
   - id: INSURE-TRUST-001
