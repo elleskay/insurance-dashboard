@@ -1,5 +1,7 @@
 # CoverLens SG
 
+![CoverLens SG](docs/screenshots/hero.png)
+
 Upload your Singapore insurance policy PDFs and get an instant coverage summary: what you are covered for by category, what you pay, and where your protection may fall short of the common rules of thumb. No data entry, the figures are read from your documents for you, and an AI advisor suggests grounded next steps.
 
 **Live:** https://d33z7oya883ugt.cloudfront.net
@@ -14,6 +16,20 @@ Upload your Singapore insurance policy PDFs and get an instant coverage summary:
 - **Premium view.** Total annual premium and its share of income against the roughly 15 percent protection guideline.
 - **Grounded AI advisor.** Ask for personalised next steps. A LangGraph agent drafts suggestions, checks every dollar figure it cites against the gaps actually computed from your numbers, revises anything it cannot ground, and flags anything it had to set aside. It will not show you an invented figure.
 - **Fix anything inline.** The policy list is editable, so anything the model misreads is corrected in place. A manual "add by hand" fallback covers documents that will not parse.
+
+## Screenshots
+
+**Dashboard.** Drop a PDF and the coverage summary fills in: total cover, premium, and the death/TPD and critical illness gaps surfaced up top.
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+**Coverage and adequacy.** Coverage by category as a donut, with gauges comparing your cover against the income-based benchmarks.
+
+![Coverage and adequacy](docs/screenshots/coverage.png)
+
+**Grounded AI advisor.** The LangGraph agent's recommendations. Every dollar figure it cites is checked against the gaps computed from your own numbers before it is shown.
+
+![Grounded AI advisor](docs/screenshots/advisor.png)
 
 ## How it works
 
