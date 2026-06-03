@@ -150,6 +150,27 @@ test("[INSURE-UPLOAD-002] uploading a policy PDF produces a summary and a fine-p
   await expect(card.getByTestId("checklist-item")).toHaveCount(CHECK_ITEMS.length);
 });
 
+test("[INSURE-LOAD-001] while a document is being checked, a progress indicator with timing is shown", async ({
+  page,
+}) => {
+  await page.goto("/");
+  // Delay the checker response so the in-progress state is observable.
+  await page.route("**/api/check", async (route) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ policies: [], needsReview: false }),
+    });
+  });
+  await page.getByTestId("pdf-input").setInputFiles(SAMPLE_PDF);
+  const progress = page.getByTestId("check-progress");
+  await expect(progress).toBeVisible();
+  await expect(page.getByTestId("check-eta")).toContainText(/elapsed|left|done/i);
+  // It clears once the check resolves.
+  await expect(progress).toBeHidden({ timeout: 10_000 });
+});
+
 test("[INSURE-SUMMARY-001] each checked policy shows a plain-language summary of what it covers", async ({
   page,
 }) => {

@@ -53,6 +53,12 @@ export interface NextjsServerlessProps {
   readonly serverMemoryMb?: number;
 
   /**
+   * Timeout (seconds) for the server Lambda and the CloudFront origin read.
+   * Default 60. Raise for routes that run slow work (e.g. multi-pass LLM calls).
+   */
+  readonly serverTimeoutSeconds?: number;
+
+  /**
    * CloudFront price class. Default PRICE_CLASS_200 (NA, EU, AP).
    */
   readonly priceClass?: cloudfront.PriceClass;
@@ -185,7 +191,10 @@ export class NextjsServerless extends Construct {
       handler: "index.handler",
       code: lambda.Code.fromAsset(path.join(openNextDir, "server-functions", "default")),
       memorySize: props.serverMemoryMb ?? 1024,
-      timeout: cdk.Duration.seconds(30),
+      // The policy checker route runs a multi-pass grounded LLM extraction that
+      // can take well over 30s on a multi-page PDF, so give it room (matches the
+      // route's maxDuration). Raise the CloudFront readTimeout below to match.
+      timeout: cdk.Duration.seconds(props.serverTimeoutSeconds ?? 60),
       architecture: lambda.Architecture.ARM_64,
       environment: {
         NODE_ENV: "production",
@@ -240,7 +249,9 @@ export class NextjsServerless extends Construct {
     const distributionProps: cloudfront.DistributionProps = {
       defaultBehavior: {
         origin: new origins.FunctionUrlOrigin(serverFunctionUrl, {
-          readTimeout: cdk.Duration.seconds(30),
+          // Match the server Lambda timeout so a slow checker response is not
+          // cut off at the CDN before the function finishes.
+          readTimeout: cdk.Duration.seconds(props.serverTimeoutSeconds ?? 60),
         }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,

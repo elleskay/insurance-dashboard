@@ -67,6 +67,15 @@ requirements:
     then: The app reads the document text in the browser, sends it to the AI checker service, and shows the returned policy with a plain-language summary and the fine-print checklist, without the visitor typing any policy values
     tags: [upload, checker, ai, journey]
 
+  - id: INSURE-LOAD-001
+    title: While a document is being checked, a progress indicator with timing is shown
+    category: ui
+    severity: medium
+    given: A visitor who has just uploaded a policy PDF that is still being read
+    when: The check is in progress
+    then: A progress indicator is shown with a stage label and an elapsed or estimated time, not just a single static line
+    tags: [upload, loading, ux]
+
   # ---------------------------------------------------------------------------
   # WHAT YOU ARE GETTING + WHAT TO WATCH FOR (Playwright)
   # ---------------------------------------------------------------------------
