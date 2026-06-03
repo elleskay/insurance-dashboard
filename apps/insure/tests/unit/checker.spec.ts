@@ -32,6 +32,7 @@ function draftPolicy(findings: DraftPolicy["findings"]): DraftPolicy {
     premium: 600,
     premiumNote: "",
     coverage: [],
+    definitions: [],
     findings,
     payout: { deductible: 0, coPaymentPercent: 0, coPaymentCap: 0 },
   };
@@ -178,6 +179,35 @@ test("[INSURE-COVERAGE-001] Each covered benefit is itemised and grounded in the
     benefit: "Death benefit",
     limit: "$500,000",
   });
+  expect(needsReview).toBe(true);
+});
+
+test("[INSURE-DEFINE-001] Each key definition is grounded in the policy wording", () => {
+  const policy = draftPolicy([]);
+  policy.definitions = [
+    {
+      term: "Total and permanent disability",
+      definition: "Unable to work in any occupation for 6 months.",
+      quote: "unable to engage in any occupation for a continuous period of 6 months",
+    },
+    {
+      term: "Critical illness",
+      definition: "Invented staging not in the document.",
+      quote: "pays on diagnosis of any critical illness at any stage whatsoever",
+    },
+  ];
+  const source =
+    "Total and permanent disability means the life assured is unable to engage in any occupation for a continuous period of 6 months.";
+
+  const issues = verifyGrounding([policy], source);
+  expect(issues.map((i) => i.key)).toContain("definition:Critical illness");
+  expect(issues.map((i) => i.key)).not.toContain(
+    "definition:Total and permanent disability",
+  );
+
+  const { policies, needsReview } = summarize([policy], issues, source);
+  expect(policies[0].definitions).toHaveLength(1);
+  expect(policies[0].definitions[0].term).toBe("Total and permanent disability");
   expect(needsReview).toBe(true);
 });
 

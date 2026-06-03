@@ -76,6 +76,11 @@ async function draftNode(
       detail: c.detail,
       quote: c.quote,
     })),
+    definitions: p.definitions.map((d) => ({
+      term: d.term,
+      definition: d.definition,
+      quote: d.quote,
+    })),
     findings: p.findings.map((f) => ({
       key: f.key,
       detail: f.detail,

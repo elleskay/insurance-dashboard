@@ -38,6 +38,22 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
         quote: "the total and permanent disability benefit of $750,000 is payable before the policy anniversary at age 70",
       },
     ],
+    definitions: [
+      {
+        term: "Total and permanent disability (before age 65)",
+        definition:
+          "Before age 65, TPD means being unable to work in ANY occupation you are suited to by training or experience, not just your own job, for at least 6 continuous months.",
+        quote:
+          "total and permanent disability means the life assured is unable to engage in any occupation for which he is reasonably suited by education, training or experience for a continuous period of 6 months",
+      },
+      {
+        term: "Total and permanent disability (presumptive)",
+        definition:
+          "It is also met automatically on total and irrecoverable loss of use of two limbs, or sight in both eyes.",
+        quote:
+          "or the total and irrecoverable loss of the use of two limbs or the sight of both eyes",
+      },
+    ],
     benefitAmount: 750000,
     premium: 720,
     checklist: checklist({
@@ -89,6 +105,15 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
         limit: "Up to 180 days",
         detail: "Related treatment before and after a hospital stay is covered for up to 180 days.",
         quote: "pre-hospitalisation and post-hospitalisation treatment is covered for up to 180 days",
+      },
+    ],
+    definitions: [
+      {
+        term: "Pre-existing condition",
+        definition:
+          "Any condition you had, or had symptoms of, before the policy started, whether or not you knew about it. These are excluded unless declared and accepted.",
+        quote:
+          "a pre-existing condition means any illness, disease or condition which existed or showed signs or symptoms prior to the policy start date",
       },
     ],
     premium: 650,

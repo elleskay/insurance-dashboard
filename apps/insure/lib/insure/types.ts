@@ -86,6 +86,19 @@ export interface CheckItem {
   severity: CheckSeverity;
 }
 
+/**
+ * How the policy defines a term that decides a payout (for example total and
+ * permanent disability, or critical illness severity). Grounded in the wording.
+ */
+export interface DefinitionItem {
+  /** The term being defined, for example "Total and permanent disability". */
+  term: string;
+  /** A plain-language restatement of how this policy defines the term. */
+  definition: string;
+  /** Verbatim snippet from the document stating the definition. */
+  quote: string;
+}
+
 /** A single covered benefit, itemised and grounded in the document wording. */
 export interface CoverageItem {
   /** What is covered, for example "Hospital room and board" or "Death benefit". */
@@ -122,6 +135,8 @@ export interface PolicyCheck {
   summary: string;
   /** Itemised, grounded list of what the policy covers. */
   coverage: CoverageItem[];
+  /** How the policy defines its key payout-deciding terms, grounded in wording. */
+  definitions: DefinitionItem[];
   /** Benefit / sum assured in SGD, if stated. */
   benefitAmount?: number;
   /** Annual premium in SGD, if stated. */

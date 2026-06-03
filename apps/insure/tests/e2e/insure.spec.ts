@@ -64,6 +64,13 @@ async function mockCheck(
             quote: "the total and permanent disability benefit of $500,000 is payable",
           },
         ],
+        definitions: [
+          {
+            term: "Total and permanent disability",
+            definition: "Unable to work in any occupation you are suited to for 6 months.",
+            quote: "unable to engage in any occupation for a continuous period of 6 months",
+          },
+        ],
         benefitAmount: 500000,
         premium: 600,
         premiumNote: "",
@@ -163,6 +170,20 @@ test("[INSURE-COVERAGE-002] a checked policy shows an itemised list of what it c
   const first = list.getByTestId("coverage-item").first();
   await expect(first).toContainText("Death benefit");
   await expect(first).toContainText("$500,000"); // the limit is shown
+});
+
+test("[INSURE-DEFINE-002] a checked policy surfaces how it defines its key terms", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await uploadSample(page);
+  const list = page.getByTestId("definitions-list").first();
+  await expect(list).toBeVisible();
+  const tpd = list.getByTestId("definition-item").first();
+  await expect(tpd).toContainText("Total and permanent disability");
+  // The policy's own wording is traceable.
+  await tpd.getByTestId("definition-quote").locator("summary").click();
+  await expect(tpd).toContainText(/any occupation/i);
 });
 
 test("[INSURE-FINEPRINT-001] each checked policy shows the curated watch-out checklist with a status per item", async ({

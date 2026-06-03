@@ -213,6 +213,30 @@ requirements:
     depends_on: [INSURE-UPLOAD-002]
 
   # ---------------------------------------------------------------------------
+  # KEY DEFINITIONS (Vitest + Playwright)
+  # How the policy defines the terms that decide a payout (TPD, critical illness
+  # staging and survival period, covered conditions). This is where claims fail.
+  # ---------------------------------------------------------------------------
+  - id: INSURE-DEFINE-001
+    title: Each key definition is grounded in the policy wording
+    category: data
+    severity: critical
+    given: Drafted definitions where one quotes wording that appears in the document and one quotes wording that does not
+    when: The result is summarised
+    then: The grounded definition is kept and the ungrounded one is dropped, so the app never shows an invented definition, and the result is flagged for review
+    tags: [definitions, grounding, safety]
+
+  - id: INSURE-DEFINE-002
+    title: A checked policy surfaces how it defines its key terms
+    category: ui
+    severity: high
+    given: A checked policy whose document defines a key term such as total and permanent disability or critical illness
+    when: Its card renders
+    then: A key-definitions section shows how the policy defines that term, with the supporting wording from the document
+    tags: [definitions, detail]
+    depends_on: [INSURE-UPLOAD-002]
+
+  # ---------------------------------------------------------------------------
   # DEDUCTIBLE PAYOUT EXPLAINER (Vitest + Playwright)
   # The single biggest real-world cause of "my claim did not pay": bills at or
   # below the deductible are fully self-paid.

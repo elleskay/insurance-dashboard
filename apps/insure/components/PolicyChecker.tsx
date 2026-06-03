@@ -8,6 +8,7 @@ import {
   type CheckItem,
   type CheckSeverity,
   type CoverageItem,
+  type DefinitionItem,
   type Payout,
   type PolicyCheck,
   type PolicyCheckData,
@@ -285,6 +286,20 @@ function PolicyCard({
         ) : null}
       </div>
 
+      {/* How the policy defines the terms that decide a payout */}
+      {check.definitions.length > 0 ? (
+        <div>
+          <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            How your policy defines the key terms
+          </h4>
+          <ul data-testid="definitions-list" className="mt-2 flex flex-col gap-2">
+            {check.definitions.map((d, i) => (
+              <DefinitionRow key={`${d.term}-${i}`} item={d} />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {/* The single headline catch */}
       {top ? (
         <div
@@ -330,6 +345,30 @@ function PolicyCard({
         </ul>
       </div>
     </article>
+  );
+}
+
+function DefinitionRow({ item }: { item: DefinitionItem }) {
+  return (
+    <li
+      data-testid="definition-item"
+      className="rounded-2xl border border-border bg-surface/60 p-3.5"
+    >
+      <p className="text-sm font-semibold text-heading">{item.term}</p>
+      {item.definition ? (
+        <p className="mt-1 text-sm text-muted-foreground">{item.definition}</p>
+      ) : null}
+      {item.quote ? (
+        <details data-testid="definition-quote" className="mt-1.5 text-sm">
+          <summary className="cursor-pointer font-medium text-primary">
+            Show the wording from your document
+          </summary>
+          <blockquote className="mt-1.5 border-l-2 border-primary/40 pl-3 text-muted-foreground">
+            {item.quote}
+          </blockquote>
+        </details>
+      ) : null}
+    </li>
   );
 }
 

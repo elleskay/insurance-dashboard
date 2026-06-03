@@ -80,6 +80,13 @@ export interface DraftCoverage {
   quote: string;
 }
 
+/** How the policy defines a key term, with a supporting quote. */
+export interface DraftDefinition {
+  term: string;
+  definition: string;
+  quote: string;
+}
+
 /** What the model returns for a single policy in the document. */
 export interface DraftPolicy {
   insurer: string;
@@ -90,6 +97,7 @@ export interface DraftPolicy {
   premium: number;
   premiumNote: string;
   coverage: DraftCoverage[];
+  definitions: DraftDefinition[];
   findings: DraftFinding[];
   payout: DraftPayout;
 }
@@ -163,6 +171,15 @@ export function verifyGrounding(
           policyIndex,
           key: `coverage:${c.benefit}`,
           reason: `The quote for the covered benefit "${c.benefit}" was not found in the document. Quote the exact wording or drop the benefit.`,
+        });
+      }
+    });
+    policy.definitions.forEach((d) => {
+      if (!isQuoteGrounded(d.quote, normalizedSource)) {
+        issues.push({
+          policyIndex,
+          key: `definition:${d.term}`,
+          reason: `The quote for the definition of "${d.term}" was not found in the document. Quote the exact wording or drop the definition.`,
         });
       }
     });
@@ -324,6 +341,19 @@ export function summarize(
         quote: c.quote.trim(),
       }));
 
+    // Keep only definitions we can ground in the document wording.
+    const definitions = policy.definitions
+      .filter((d) => {
+        const ok = isQuoteGrounded(d.quote, normalizedSource);
+        if (!ok) dropped += 1;
+        return ok;
+      })
+      .map((d) => ({
+        term: d.term.trim() || "Term",
+        definition: d.definition.trim(),
+        quote: d.quote.trim(),
+      }));
+
     void policyIndex;
     return {
       insurer: policy.insurer.trim() || "Unknown insurer",
@@ -331,6 +361,7 @@ export function summarize(
       category: toCategory(policy.category),
       summary: policy.summary.trim(),
       coverage,
+      definitions,
       benefitAmount: positiveAmount(policy.benefitAmount),
       premium: positiveAmount(policy.premium),
       premiumNote: policy.premiumNote.trim() || undefined,
@@ -387,6 +418,23 @@ export const checkDraftSchema = z.object({
           .describe(
             "An itemised list of the main benefits this policy covers, each with its limit and a verbatim supporting quote. Be specific and thorough: list each distinct benefit the document describes, not a vague summary. Only include benefits you can quote.",
           ),
+        definitions: z
+          .array(
+            z.object({
+              term: z
+                .string()
+                .describe("The term being defined, for example 'Total and permanent disability', 'Critical illness severity', 'Survival period', 'Major cancer', 'Pre-existing condition'."),
+              definition: z
+                .string()
+                .describe("A plain-language restatement of how THIS policy defines the term, in one or two sentences."),
+              quote: z
+                .string()
+                .describe("A short VERBATIM quote copied exactly from the document that states the definition. Must literally appear in the document text."),
+            }),
+          )
+          .describe(
+            "How this policy defines the terms that decide whether a claim pays: total and permanent disability (any-occupation vs activities-of-daily-living vs presumptive loss of limbs/sight), critical illness severity/staging and survival period, what counts as a covered critical illness, terminal illness, and pre-existing condition. Only the ones the document actually defines, each with a verbatim quote. Omit any you cannot quote.",
+          ),
         benefitAmount: z
           .number()
           .describe("Headline sum assured or benefit amount in SGD. Use 0 if not stated."),
@@ -440,7 +488,7 @@ export type CheckDraft = z.infer<typeof checkDraftSchema>;
 
 export const CHECKER_SYSTEM =
   "You read Singapore personal insurance policy documents and explain them plainly. " +
-  "For each policy you do three things: write a one-line intro, itemise in detail what it covers (each benefit with its limit, thorough not vague), and surface the fine print a buyer should watch for. " +
+  "For each policy you: write a one-line intro, itemise in detail what it covers (each benefit with its limit), surface how it defines the terms that decide a payout (total and permanent disability, critical illness severity and survival period, covered conditions), and surface the fine print a buyer should watch for. " +
   "You may ONLY report a watch-out if you can copy a verbatim quote of the supporting wording from the document text provided; if you cannot quote it, do not report it. " +
   "Never invent exclusions, limits, waiting periods or figures. It is correct and expected to leave items out when the document does not mention them. " +
   "This is general information, not financial advice. Do not use em dashes.";
