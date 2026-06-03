@@ -7,6 +7,7 @@ import {
   CHECK_LABELS,
   type CheckItem,
   type CheckSeverity,
+  type CoverageItem,
   type Payout,
   type PolicyCheck,
   type PolicyCheckData,
@@ -265,13 +266,22 @@ function PolicyCard({
       {/* What you are getting */}
       <div>
         <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          What you are getting
+          What you are covered for
         </h4>
         <p data-testid="check-summary" className="mt-1.5 text-sm text-foreground">
           {check.summary}
         </p>
+
+        {check.coverage.length > 0 ? (
+          <ul data-testid="coverage-list" className="mt-3 flex flex-col gap-2">
+            {check.coverage.map((c, i) => (
+              <CoverageRow key={`${c.benefit}-${i}`} item={c} />
+            ))}
+          </ul>
+        ) : null}
+
         {check.premiumNote ? (
-          <p className="mt-1.5 text-sm text-warn">Premium note: {check.premiumNote}</p>
+          <p className="mt-3 text-sm text-warn">Premium note: {check.premiumNote}</p>
         ) : null}
       </div>
 
@@ -320,6 +330,35 @@ function PolicyCard({
         </ul>
       </div>
     </article>
+  );
+}
+
+function CoverageRow({ item }: { item: CoverageItem }) {
+  return (
+    <li
+      data-testid="coverage-item"
+      className="rounded-2xl border border-border bg-surface/60 p-3.5"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-heading">{item.benefit}</span>
+        <span className="rounded-full bg-ok-soft px-2.5 py-0.5 text-xs font-semibold text-ok">
+          {item.limit}
+        </span>
+      </div>
+      {item.detail ? (
+        <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
+      ) : null}
+      {item.quote ? (
+        <details data-testid="coverage-quote" className="mt-1.5 text-sm">
+          <summary className="cursor-pointer font-medium text-primary">
+            Show the wording from your document
+          </summary>
+          <blockquote className="mt-1.5 border-l-2 border-primary/40 pl-3 text-muted-foreground">
+            {item.quote}
+          </blockquote>
+        </details>
+      ) : null}
+    </li>
   );
 }
 

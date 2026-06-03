@@ -72,6 +72,14 @@ export interface DraftPayout {
   coPaymentCap: number;
 }
 
+/** A covered benefit the model extracts, with a supporting quote. */
+export interface DraftCoverage {
+  benefit: string;
+  limit: string;
+  detail: string;
+  quote: string;
+}
+
 /** What the model returns for a single policy in the document. */
 export interface DraftPolicy {
   insurer: string;
@@ -81,6 +89,7 @@ export interface DraftPolicy {
   benefitAmount: number;
   premium: number;
   premiumNote: string;
+  coverage: DraftCoverage[];
   findings: DraftFinding[];
   payout: DraftPayout;
 }
@@ -145,6 +154,15 @@ export function verifyGrounding(
           policyIndex,
           key: f.key,
           reason: `The quote for "${CHECK_LABELS[f.key as CheckKey]}" was not found in the document. Quote the exact wording or drop the finding.`,
+        });
+      }
+    });
+    policy.coverage.forEach((c) => {
+      if (!isQuoteGrounded(c.quote, normalizedSource)) {
+        issues.push({
+          policyIndex,
+          key: `coverage:${c.benefit}`,
+          reason: `The quote for the covered benefit "${c.benefit}" was not found in the document. Quote the exact wording or drop the benefit.`,
         });
       }
     });
@@ -292,12 +310,27 @@ export function summarize(
       return { key, status: "not-stated", detail: "", quote: "", severity: "info" };
     });
 
+    // Keep only coverage benefits we can ground in the document wording.
+    const coverage = policy.coverage
+      .filter((c) => {
+        const ok = isQuoteGrounded(c.quote, normalizedSource);
+        if (!ok) dropped += 1;
+        return ok;
+      })
+      .map((c) => ({
+        benefit: c.benefit.trim() || "Benefit",
+        limit: c.limit.trim() || "See policy",
+        detail: c.detail.trim(),
+        quote: c.quote.trim(),
+      }));
+
     void policyIndex;
     return {
       insurer: policy.insurer.trim() || "Unknown insurer",
       name: policy.name.trim() || "Policy",
       category: toCategory(policy.category),
       summary: policy.summary.trim(),
+      coverage,
       benefitAmount: positiveAmount(policy.benefitAmount),
       premium: positiveAmount(policy.premium),
       premiumNote: policy.premiumNote.trim() || undefined,
@@ -332,7 +365,27 @@ export const checkDraftSchema = z.object({
         summary: z
           .string()
           .describe(
-            "Two to four plain-language sentences: what this policy covers, what triggers a payout, and the headline benefit. Aimed at someone with no insurance knowledge.",
+            "One or two plain-language sentences introducing what kind of policy this is and what triggers a payout. A short intro only; the detailed benefits go in coverage.",
+          ),
+        coverage: z
+          .array(
+            z.object({
+              benefit: z
+                .string()
+                .describe("What is covered, in plain words. For example 'Hospital room and board', 'Surgical benefit', 'Death benefit', 'Critical illness lump sum', 'Outpatient cancer treatment'."),
+              limit: z
+                .string()
+                .describe("The amount or limit exactly as stated. For example 'As charged', '$200,000', 'up to $1,500 per day', 'up to 5x MediShield Life limit'. Use 'Not stated' only if truly absent."),
+              detail: z
+                .string()
+                .describe("One plain-language sentence on what this benefit gives the policyholder."),
+              quote: z
+                .string()
+                .describe("A short VERBATIM quote copied exactly from the document that states this benefit and its limit. Must literally appear in the document text."),
+            }),
+          )
+          .describe(
+            "An itemised list of the main benefits this policy covers, each with its limit and a verbatim supporting quote. Be specific and thorough: list each distinct benefit the document describes, not a vague summary. Only include benefits you can quote.",
           ),
         benefitAmount: z
           .number()
@@ -387,7 +440,7 @@ export type CheckDraft = z.infer<typeof checkDraftSchema>;
 
 export const CHECKER_SYSTEM =
   "You read Singapore personal insurance policy documents and explain them plainly. " +
-  "For each policy you do two things: write a short plain-language summary of what it covers, and surface the fine print a buyer should watch for. " +
+  "For each policy you do three things: write a one-line intro, itemise in detail what it covers (each benefit with its limit, thorough not vague), and surface the fine print a buyer should watch for. " +
   "You may ONLY report a watch-out if you can copy a verbatim quote of the supporting wording from the document text provided; if you cannot quote it, do not report it. " +
   "Never invent exclusions, limits, waiting periods or figures. It is correct and expected to leave items out when the document does not mention them. " +
   "This is general information, not financial advice. Do not use em dashes.";

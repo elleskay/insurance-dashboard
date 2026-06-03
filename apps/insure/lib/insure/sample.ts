@@ -23,7 +23,21 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
     name: "GREAT Term Protect",
     category: "life",
     summary:
-      "A term life plan that pays a lump sum if you pass away or are diagnosed as totally and permanently disabled while the policy is in force. Cover runs for the chosen term and ends when the term does.",
+      "A term life plan that pays a lump sum on death or total and permanent disability while the policy is in force.",
+    coverage: [
+      {
+        benefit: "Death benefit",
+        limit: "$750,000",
+        detail: "A lump sum of $750,000 is paid to your beneficiaries if you pass away during the policy term.",
+        quote: "a death benefit of $750,000 is payable on the death of the life assured during the term",
+      },
+      {
+        benefit: "Total and permanent disability",
+        limit: "$750,000",
+        detail: "The same $750,000 is paid if you become totally and permanently disabled before age 70.",
+        quote: "the total and permanent disability benefit of $750,000 is payable before the policy anniversary at age 70",
+      },
+    ],
     benefitAmount: 750000,
     premium: 720,
     checklist: checklist({
@@ -50,7 +64,33 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
     name: "HealthShield Gold Max",
     category: "hospitalisation",
     summary:
-      "An Integrated Shield hospitalisation plan covering private hospital stays and selected outpatient treatments on an as-charged basis, on top of MediShield Life.",
+      "An Integrated Shield hospitalisation plan covering private hospital stays and selected outpatient treatments, on top of MediShield Life.",
+    coverage: [
+      {
+        benefit: "Hospital room and board",
+        limit: "As charged",
+        detail: "A private hospital ward is covered as charged, with no fixed daily cap.",
+        quote: "room and board in a private hospital is payable as charged",
+      },
+      {
+        benefit: "Surgical procedures",
+        limit: "As charged",
+        detail: "Surgeon, anaesthetist and operating-theatre fees are covered as charged.",
+        quote: "surgical fees, including the surgeon and anaesthetist, are payable as charged",
+      },
+      {
+        benefit: "Outpatient cancer treatment",
+        limit: "Up to 5x MediShield Life limit",
+        detail: "Approved outpatient cancer drug treatment is covered up to five times the MediShield Life limit.",
+        quote: "outpatient cancer drug treatment is covered up to 5 times the MediShield Life claim limit",
+      },
+      {
+        benefit: "Pre- and post-hospitalisation",
+        limit: "Up to 180 days",
+        detail: "Related treatment before and after a hospital stay is covered for up to 180 days.",
+        quote: "pre-hospitalisation and post-hospitalisation treatment is covered for up to 180 days",
+      },
+    ],
     premium: 650,
     premiumNote: "not guaranteed, rises with age",
     checklist: checklist({

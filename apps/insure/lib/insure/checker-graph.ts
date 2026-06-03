@@ -70,6 +70,12 @@ async function draftNode(
     benefitAmount: p.benefitAmount,
     premium: p.premium,
     premiumNote: p.premiumNote,
+    coverage: p.coverage.map((c) => ({
+      benefit: c.benefit,
+      limit: c.limit,
+      detail: c.detail,
+      quote: c.quote,
+    })),
     findings: p.findings.map((f) => ({
       key: f.key,
       detail: f.detail,

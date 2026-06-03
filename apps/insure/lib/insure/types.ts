@@ -86,6 +86,18 @@ export interface CheckItem {
   severity: CheckSeverity;
 }
 
+/** A single covered benefit, itemised and grounded in the document wording. */
+export interface CoverageItem {
+  /** What is covered, for example "Hospital room and board" or "Death benefit". */
+  benefit: string;
+  /** The limit or amount as stated, for example "As charged", "$200,000", "up to $1,500/day". */
+  limit: string;
+  /** One plain-language line on what this benefit gives you. */
+  detail: string;
+  /** Verbatim snippet from the document backing the benefit and its limit. */
+  quote: string;
+}
+
 /**
  * The out-of-pocket structure, used for a worked "will this pay out?" example.
  * Every figure here is grounded: it is only set if the number appears in the
@@ -106,8 +118,10 @@ export interface PolicyCheck {
   insurer: string;
   name: string;
   category: Category;
-  /** Plain-language "what you are getting" paragraph. */
+  /** Plain-language "what you are getting" paragraph (a short intro). */
   summary: string;
+  /** Itemised, grounded list of what the policy covers. */
+  coverage: CoverageItem[];
   /** Benefit / sum assured in SGD, if stated. */
   benefitAmount?: number;
   /** Annual premium in SGD, if stated. */

@@ -31,6 +31,7 @@ function draftPolicy(findings: DraftPolicy["findings"]): DraftPolicy {
     benefitAmount: 500000,
     premium: 600,
     premiumNote: "",
+    coverage: [],
     findings,
     payout: { deductible: 0, coPaymentPercent: 0, coPaymentCap: 0 },
   };
@@ -144,6 +145,40 @@ test("[INSURE-HIGHLIGHT-001] The most important catch is the highest-severity fo
   // Nothing found means no headline catch.
   const noneFound = CHECK_ITEMS.map((k) => item(k, "not-stated", "info"));
   expect(topCatch(noneFound)).toBeNull();
+});
+
+test("[INSURE-COVERAGE-001] Each covered benefit is itemised and grounded in the document", () => {
+  const policy = draftPolicy([]);
+  policy.coverage = [
+    {
+      benefit: "Death benefit",
+      limit: "$500,000",
+      detail: "Lump sum on death.",
+      quote: "a death benefit of $500,000 is payable on death",
+    },
+    {
+      benefit: "Dental cover",
+      limit: "$2,000",
+      detail: "Invented benefit not in the document.",
+      quote: "annual dental cover of $2,000 is included",
+    },
+  ];
+  const source =
+    "This term plan provides that a death benefit of $500,000 is payable on death of the life assured.";
+
+  // The ungrounded benefit (dental) is flagged.
+  const issues = verifyGrounding([policy], source);
+  expect(issues.map((i) => i.key)).toContain("coverage:Dental cover");
+  expect(issues.map((i) => i.key)).not.toContain("coverage:Death benefit");
+
+  // Summarising keeps the grounded benefit, drops the invented one, flags review.
+  const { policies, needsReview } = summarize([policy], issues, source);
+  expect(policies[0].coverage).toHaveLength(1);
+  expect(policies[0].coverage[0]).toMatchObject({
+    benefit: "Death benefit",
+    limit: "$500,000",
+  });
+  expect(needsReview).toBe(true);
 });
 
 test("[INSURE-DEDUCT-001] The worked payout example is computed correctly from the deductible and co-pay", () => {

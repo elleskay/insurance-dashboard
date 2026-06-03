@@ -49,7 +49,21 @@ async function mockCheck(
         name: "Secure Term Life",
         category: "life",
         summary:
-          "This is a term life policy that pays a lump sum if you die or are diagnosed as totally and permanently disabled during the policy term.",
+          "A term life policy that pays a lump sum on death or total and permanent disability.",
+        coverage: [
+          {
+            benefit: "Death benefit",
+            limit: "$500,000",
+            detail: "A lump sum of $500,000 is paid on death during the term.",
+            quote: "a death benefit of $500,000 is payable",
+          },
+          {
+            benefit: "Total and permanent disability",
+            limit: "$500,000",
+            detail: "The same sum is paid on total and permanent disability.",
+            quote: "the total and permanent disability benefit of $500,000 is payable",
+          },
+        ],
         benefitAmount: 500000,
         premium: 600,
         premiumNote: "",
@@ -135,6 +149,20 @@ test("[INSURE-SUMMARY-001] each checked policy shows a plain-language summary of
   await page.goto("/");
   await uploadSample(page);
   await expect(page.getByTestId("check-summary")).toContainText(/pays a lump sum/i);
+});
+
+test("[INSURE-COVERAGE-002] a checked policy shows an itemised list of what it covers, with limits", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await uploadSample(page);
+  const list = page.getByTestId("coverage-list").first();
+  await expect(list).toBeVisible();
+  // Itemised benefits, not just a one-line summary.
+  await expect(list.getByTestId("coverage-item")).toHaveCount(2);
+  const first = list.getByTestId("coverage-item").first();
+  await expect(first).toContainText("Death benefit");
+  await expect(first).toContainText("$500,000"); // the limit is shown
 });
 
 test("[INSURE-FINEPRINT-001] each checked policy shows the curated watch-out checklist with a status per item", async ({
