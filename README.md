@@ -2,19 +2,24 @@
 
 ![CoverLens SG](docs/screenshots/hero.png)
 
-Upload a Singapore insurance policy PDF and CoverLens reads it for you: a plain-language summary of what you are getting, plus a curated checklist of the fine print to watch for. Every watch-out it shows is backed by a verbatim quote from your own document, so nothing is taken on trust.
+Upload a Singapore insurance policy PDF and CoverLens reads it for you: a plain-language summary of what you are getting, an itemised breakdown of what you are covered for, and a curated checklist of the fine print to watch for. Every watch-out it shows is backed by a verbatim quote from your own document, so nothing is taken on trust.
 
-**Live:** https://d33z7oya883ugt.cloudfront.net
+**Live:** https://d33z7oya883ugt.cloudfront.net (no document handy? click "See a sample report")
 
 > A plain-language reading of your policy document, not financial advice. An AI reads the text and may miss or misread terms. Always confirm against your actual policy wording or a licensed financial adviser.
 
+## Why it exists
+
+Singapore policy documents are long, and the parts that decide whether a claim pays are buried in the fine print: a survival period, a co-payment, a pre-existing-conditions carve-out. CoverLens reads the wording and surfaces those terms in plain language. The safety stance is the whole point: a checker that confidently invents an exclusion is worse than useless, so this one refuses to show any finding it cannot quote, word for word, from your document. A LangGraph self-correction loop is what enforces that.
+
 ## What it does
 
-- **Upload, do not type.** Drop one or more policy PDFs. The browser reads the text and sends it to an AI checker. One document can contain several policies.
-- **Detailed coverage breakdown.** For each policy, an itemised "what you are covered for" list: every benefit with its limit (room and board as charged, a $500,000 death benefit, outpatient cancer up to 5x the MediShield Life limit), each traceable to the exact wording in your document, not a vague summary.
+- **Upload, do not type.** Drop one or more policy PDFs. The browser reads the text and sends it to the checker. One document can contain several policies.
+- **Itemised coverage breakdown.** For each policy, a "what you are covered for" list: every benefit with its limit (room and board as charged, a $500,000 death benefit, outpatient cancer up to a multiple of the MediShield Life limit), each traceable to the exact wording in your document, not a vague summary.
 - **Key definitions.** How your policy defines the terms that actually decide a payout: total and permanent disability (any-occupation vs activities-of-daily-living vs presumptive), critical illness severity and the survival period, the covered-conditions list, each quoted from your document. This is where claims most often fail.
-- **A curated fine-print checklist.** The watch-outs that matter for Singapore policies: waiting period, survival period, pre-existing conditions, key exclusions, co-payment and deductible, claim and sub-limits, premium guarantee, and free-look period. Each item is marked found or not stated, so nothing silently disappears.
-- **Grounded, never invented.** A LangGraph agent drafts the findings, then checks that every one is backed by a verbatim quote from your document. Anything it cannot quote is re-drafted, then demoted to "not stated" rather than shown. A hallucinated exclusion is dangerous, so the app refuses to surface one.
+- **A curated fine-print checklist.** The watch-outs that matter for Singapore policies: waiting period, survival period, pre-existing conditions, key exclusions, deductible, co-payment and pro-ration, claim and sub-limits, premium guarantee, and free-look period. Each item is marked found or not stated, so nothing silently disappears.
+- **A worked "will this pay out?" example.** The most common real-world reason a claim does not pay is the bill being at or below the deductible. When the document states a deductible and co-payment, the checker shows a worked figure, using only numbers it can find in your document.
+- **Grounded, never invented.** A LangGraph agent drafts the findings, then checks that every one is backed by a verbatim quote from your document. Anything it cannot quote is re-drafted, then demoted to "not stated" rather than shown.
 - **Trace any finding to the source.** Each found watch-out has a "show the wording from your document" disclosure with the exact quote it was drawn from.
 
 ## Screenshots
@@ -27,7 +32,7 @@ Upload a Singapore insurance policy PDF and CoverLens reads it for you: a plain-
 
 ![Coverage breakdown and fine-print checklist](docs/screenshots/fineprint.png)
 
-**Will a claim pay out?** The most common real-world reason a claim does not pay is the bill being at or below the deductible. When the document states a deductible and co-payment, the checker shows a worked example, using only figures it can find in your document.
+**Will a claim pay out?** When the document states a deductible and co-payment, the checker shows a worked example, using only figures it can find in your document.
 
 ![Deductible payout explainer](docs/screenshots/deductible.png)
 
@@ -37,16 +42,18 @@ From a dropped PDF to a grounded breakdown, in one flow.
 
 ```mermaid
 flowchart TD
-    Upload([Upload policy PDF]) --> Parse[Read text in the browser, pdfjs-dist]
+    Upload([Upload policy PDF]) --> Parse[Read text in the browser with pdfjs-dist]
     Parse --> Check[POST /api/check]
     Check --> Graph[LangGraph checker, grounded and self-correcting]
-    Graph --> Summary[Plain-language summary]
+    Graph --> Coverage[Itemised coverage breakdown]
+    Graph --> Definitions[Key payout-deciding definitions]
     Graph --> Checklist[Fine-print checklist, each item quoted or not stated]
+    Graph --> Payout[Deductible payout example]
 ```
 
 ### The check request, step by step
 
-The checker is a LangGraph state graph whose headline is a self-correction loop: it never surfaces a finding it cannot quote from your document.
+The checker is a LangGraph state graph whose headline is a self-correction loop: it never surfaces a finding it cannot quote from your document. A single model call cannot guarantee that; the loop, the shared state, and the conditional routing are what LangGraph adds.
 
 ```mermaid
 sequenceDiagram
@@ -68,7 +75,7 @@ sequenceDiagram
     Graph->>Graph: finalize, demote unquotable to not stated, build full checklist
     Graph-->>API: summary and grounded checklist
     API-->>Browser: checked policy
-    Browser-->>User: render summary and fine print
+    Browser-->>User: render breakdown and fine print
 ```
 
 ### Privacy
@@ -83,9 +90,10 @@ Responsibilities by layer. The browser owns parsing and state; the server owns t
 
 ```mermaid
 flowchart TD
-    UI[React UI and client state, localStorage] --> PDF[In-browser PDF parsing, pdfjs-dist]
+    UI[React UI and client state in localStorage] --> PDF[In-browser PDF parsing with pdfjs-dist]
     UI --> Route[API route, POST /api/check]
-    Route --> Graph[LangGraph grounding graph]
+    Route --> Guard[Origin guard and rate limit]
+    Guard --> Graph[LangGraph grounding graph]
     Graph --> Draft[Drafter node, Vercel AI SDK generateObject]
     Graph --> Verify[Verify node, quote grounding, deterministic]
     Draft --> Anthropic[Anthropic API]
@@ -98,19 +106,22 @@ What runs in production. There is no database: the only persistent store is the 
 ```mermaid
 flowchart LR
     User([User browser]) -->|HTTPS| CF[CloudFront CDN]
-    CF -->|static| S3[(S3 static assets)]
-    CF -->|dynamic| Lambda[Lambda: Next.js via OpenNext]
+    CF -->|static assets| S3[(S3 bucket)]
+    CF -->|dynamic requests| Lambda[Lambda, Next.js via OpenNext]
     Lambda --> Anthropic[Anthropic API]
 ```
 
 ### Data model
 
-There is no server database. This is the client-side TypeScript domain model, held in React state and mirrored to `localStorage`. The checker builds and returns these types at request time.
+There is no server database. This is the client-side TypeScript domain model, held in React state and mirrored to `localStorage`. The checker builds and returns these types at request time, so the diagram below is the shape of one checked policy, not a stored schema.
 
 ```mermaid
 erDiagram
-    CHECKS_STATE ||--o{ POLICY_CHECK : holds
-    POLICY_CHECK ||--|{ CHECK_ITEM : has
+    POLICY_CHECK ||--o{ COVERAGE_ITEM : itemises
+    POLICY_CHECK ||--o{ DEFINITION_ITEM : defines
+    POLICY_CHECK ||--|{ CHECK_ITEM : "checklist, one per curated key"
+    POLICY_CHECK ||--o| PAYOUT : "may include"
+
     POLICY_CHECK {
         string id
         string insurer
@@ -120,6 +131,18 @@ erDiagram
         number benefitAmount
         number premium
         boolean needsReview
+        boolean sample
+    }
+    COVERAGE_ITEM {
+        string benefit
+        string limit
+        string detail
+        string quote
+    }
+    DEFINITION_ITEM {
+        string term
+        string definition
+        string quote
     }
     CHECK_ITEM {
         CheckKey key
@@ -128,9 +151,14 @@ erDiagram
         string quote
         CheckSeverity severity
     }
+    PAYOUT {
+        number deductible
+        number coPayPercent
+        number coPayCap
+    }
 ```
 
-The checklist always holds one `CHECK_ITEM` per curated key, in a fixed order, each either `found` (with `detail` and `quote`) or `not-stated`.
+Client-side only, no database. The checklist always holds one `CHECK_ITEM` per curated key, in a fixed order, each either `found` (with `detail` and `quote`) or `not-stated`.
 
 ## Spec-driven development
 
@@ -150,7 +178,7 @@ Requirements are not prose, they are data. Every behaviour lives in `apps/insure
 The matching test is titled `[INSURE-CHECK-001] ...`. The coverage tool cross-checks the spec against the tests that actually ran:
 
 ```
-insure v1: 100% covered (16/16)
+insure v1: 100% covered (28/28)
 ```
 
 The grounding logic runs on Vitest, the rest on Playwright, and accessibility is checked with axe. The non-deterministic AI call is stubbed in e2e (`page.route` on `/api/check`) so the gate stays offline and deterministic. The build is not done until the gate is green; tests and code ship in the same change.
@@ -162,9 +190,10 @@ The grounding logic runs on Vitest, the rest on Playwright, and accessibility is
 | Framework | Next.js 16 (App Router), React 19, TypeScript strict |
 | Styling | Tailwind CSS v4, Geist fonts |
 | PDF | `pdfjs-dist`, worker bundled as a `/_next/static` asset |
-| AI checker | LangGraph (`@langchain/langgraph`) grounding graph; the model node reuses the Vercel AI SDK (`generateObject` + `@ai-sdk/anthropic` + a Zod schema) |
+| AI checker | LangGraph (`@langchain/langgraph`) grounding graph; the model node reuses the Vercel AI SDK (`generateObject` with `@ai-sdk/anthropic` and a Zod schema) |
 | Grounding | Deterministic quote-in-document verification, unit-tested without a model |
 | Validation | Zod at the server-route boundary |
+| Abuse guards | Origin allow-list and best-effort in-memory rate limit on `/api/check` |
 | Infra | AWS Lambda, S3, CloudFront via OpenNext, provisioned with AWS CDK |
 | Testing | Vitest, Playwright, axe; spec-driven coverage gate |
 | Built on | the [platform template](https://github.com/elleskay/platform) |
@@ -189,6 +218,8 @@ npm run lint
 npx tsc --noEmit
 ```
 
+`test:spec` runs the unit tests (Vitest), the e2e tests (Playwright), then the coverage gate, which exits non-zero if any of the 28 requirements is uncovered or its test is red.
+
 ## Deployment
 
 Push runs the quality gates in GitHub Actions. The live deploy is a manual local CDK run, because the API key is baked into the Lambda environment at synth time and must be present when you deploy.
@@ -198,10 +229,10 @@ flowchart LR
     Dev([Developer]) -->|git push| GH[GitHub]
     GH --> CI[CI: typecheck, lint, build, synth]
     GH --> Sec[Security: CodeQL, gitleaks, audit]
-    GH --> Test[Test: spec gate 16/16]
+    GH --> Test[Test: spec gate 28/28]
     Dev -->|manual deploy| Build[OpenNext build]
     Build --> CDK[cdk deploy, key baked at synth]
-    CDK --> Infra[S3 + Lambda + CloudFront]
+    CDK --> Infra[S3, Lambda, CloudFront]
     Infra --> Live([Live on CloudFront])
 ```
 
@@ -218,7 +249,7 @@ Stack: `InsureServerless`. See `docs/DEPLOY.md` for the platform deploy gotchas.
 
 ### Before sharing the live URL publicly
 
-`/api/check` is a public, unauthenticated endpoint with only an input cap. Anyone calling it spends your API credits. Add rate limiting (the platform ships a no-op Upstash helper) or auth before wide exposure.
+`/api/check` is a public, unauthenticated endpoint that fires paid model calls. The app ships two guards: an origin allow-list (set via `ALLOWED_ORIGINS`, so production rejects cross-site and origin-less callers) and a best-effort in-memory sliding-window rate limit. The rate limit only sees one Lambda instance, so for a hard, multi-instance cap, wire the platform Upstash helper (`apps/_template/lib/rate-limit.ts`) and set the `UPSTASH_*` env vars before wide exposure.
 
 ## Structure
 
@@ -227,7 +258,7 @@ apps/insure/
   app/            # layout, page, /api/check, globals.css
   components/     # PolicyChecker, PdfUpload, Aurora, TiltCard
   lib/insure/     # types (domain + checklist), checker (grounding logic + schema + prompt),
-                  # checker-graph (LangGraph graph), meta
+                  # checker-graph (LangGraph graph), security (abuse guards), sample, meta
   specs/          # insure.yml (the source of truth for tests)
   tests/          # unit (Vitest) + e2e (Playwright) + fixtures
 infra/cdk/insure/ # CDK package (stack InsureServerless)
