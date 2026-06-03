@@ -138,10 +138,12 @@ jobs:
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
           AUTH_URL: ${{ vars.APP_URL }}
           # insure-specific: the stack resolves the app from PLATFORM_DEMO_APP_PATH
-          # and bakes the checker key into the Lambda env at synth time.
+          # and bakes the checker key + origin allow-list into the Lambda env at
+          # synth time.
           PLATFORM_DEMO_APP_PATH: ${{ env.APP_DIR }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CHECKER_MODEL: ${{ vars.CHECKER_MODEL }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
         run: npx cdk deploy --all --require-approval never --outputs-file cdk-outputs.json
 
       - name: Extract deployed URL

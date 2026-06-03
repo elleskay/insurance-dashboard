@@ -17,6 +17,9 @@ export class WebStack extends cdk.Stack {
         DATABASE_URL: process.env.DATABASE_URL ?? "",
         AUTH_SECRET: process.env.AUTH_SECRET ?? "",
         AUTH_URL: process.env.AUTH_URL ?? "",
+        // Same-origin guard for /api/check. When set, only these origins may
+        // call the paid checker route; unset, the guard is off (local dev).
+        ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS ?? "",
         // Policy checker (apps/insure /api/check). Baked at synth time, so the
         // key must be in the environment when you run cdk deploy. Without it the
         // route returns 503 and the checker is unavailable.
