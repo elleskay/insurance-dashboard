@@ -11,7 +11,7 @@ Upload a Singapore insurance policy PDF and CoverLens reads it for you: a plain-
 ## What it does
 
 - **Upload, do not type.** Drop one or more policy PDFs. The browser reads the text and sends it to an AI checker. One document can contain several policies.
-- **Plain-language summary.** For each policy, a short "what you are getting" explanation: what it covers, what triggers a payout, and the headline benefit, written for someone with no insurance background.
+- **Detailed coverage breakdown.** For each policy, an itemised "what you are covered for" list: every benefit with its limit (room and board as charged, a $500,000 death benefit, outpatient cancer up to 5x the MediShield Life limit), each traceable to the exact wording in your document, not a vague summary.
 - **A curated fine-print checklist.** The watch-outs that matter for Singapore policies: waiting period, survival period, pre-existing conditions, key exclusions, co-payment and deductible, claim and sub-limits, premium guarantee, and free-look period. Each item is marked found or not stated, so nothing silently disappears.
 - **Grounded, never invented.** A LangGraph agent drafts the findings, then checks that every one is backed by a verbatim quote from your document. Anything it cannot quote is re-drafted, then demoted to "not stated" rather than shown. A hallucinated exclusion is dangerous, so the app refuses to surface one.
 - **Trace any finding to the source.** Each found watch-out has a "show the wording from your document" disclosure with the exact quote it was drawn from.
@@ -22,9 +22,9 @@ Upload a Singapore insurance policy PDF and CoverLens reads it for you: a plain-
 
 ![Overview](docs/screenshots/overview.png)
 
-**What to watch for.** Each policy leads with its single most important catch, then the curated checklist. Found items carry a severity and the verbatim quote from your document, sorted most serious first; the rest are clearly marked not stated.
+**What you are covered for, then what to watch for.** Each policy itemises its benefits with limits and a traceable quote, then leads with its single most important catch and the curated checklist (found items carry a severity and the verbatim quote, sorted most serious first; the rest marked not stated).
 
-![Fine-print checklist](docs/screenshots/fineprint.png)
+![Coverage breakdown and fine-print checklist](docs/screenshots/fineprint.png)
 
 **Will a claim pay out?** The most common real-world reason a claim does not pay is the bill being at or below the deductible. When the document states a deductible and co-payment, the checker shows a worked example, using only figures it can find in your document.
 
