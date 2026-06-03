@@ -18,11 +18,11 @@ Upload a Singapore insurance policy PDF and CoverLens reads it for you: a plain-
 
 ## Screenshots
 
-**Overview.** Upload a policy and it is read into a plain-language card, with a running count of the watch-outs found.
+**Overview.** Upload a policy and it is read into a plain-language card, with a running count of the watch-outs found. No document handy? "See a sample report" loads a labelled sample with no upload.
 
 ![Overview](docs/screenshots/overview.png)
 
-**What to watch for.** The curated checklist per policy. Found items carry a severity and the verbatim quote from your document; the rest are clearly marked not stated.
+**What to watch for.** Each policy leads with its single most important catch, then the curated checklist. Found items carry a severity and the verbatim quote from your document, sorted most serious first; the rest are clearly marked not stated.
 
 ![Fine-print checklist](docs/screenshots/fineprint.png)
 
