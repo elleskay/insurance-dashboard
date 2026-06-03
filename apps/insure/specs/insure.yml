@@ -190,6 +190,39 @@ requirements:
     tags: [demo, onboarding]
 
   # ---------------------------------------------------------------------------
+  # DEDUCTIBLE PAYOUT EXPLAINER (Vitest + Playwright)
+  # The single biggest real-world cause of "my claim did not pay": bills at or
+  # below the deductible are fully self-paid.
+  # ---------------------------------------------------------------------------
+  - id: INSURE-DEDUCT-001
+    title: The worked payout example is computed correctly from the deductible and co-pay
+    category: data
+    severity: high
+    given: An example bill, a deductible, an optional co-payment percentage and an optional co-payment cap
+    when: The out-of-pocket split is computed
+    then: A bill at or below the deductible is fully self-paid with nothing from the insurer, and a larger bill charges the deductible plus the capped co-payment to the insured and the remainder to the insurer
+    tags: [deductible, payout, math]
+
+  - id: INSURE-DEDUCT-002
+    title: Payout figures are only used when they appear in the document
+    category: data
+    severity: critical
+    given: Extracted deductible and co-payment figures where one appears in the policy text and one does not
+    when: The payout figures are grounded against the source
+    then: The figure present in the document is kept and the fabricated figure is dropped, so no invented out-of-pocket number is shown
+    tags: [deductible, grounding, safety]
+
+  - id: INSURE-DEDUCT-003
+    title: A policy with a deductible shows a will-it-pay-out explainer
+    category: ui
+    severity: medium
+    given: A checked policy whose deductible was found in the document
+    when: Its card renders
+    then: A plain-language explainer shows the deductible and a worked example of what the insured pays versus the insurer on a sample bill
+    tags: [deductible, payout]
+    depends_on: [INSURE-FINEPRINT-001]
+
+  # ---------------------------------------------------------------------------
   # ACCESSIBILITY (Playwright + axe)
   # ---------------------------------------------------------------------------
   - id: INSURE-A11Y-001

@@ -1,7 +1,10 @@
 import { test, expect } from "@platform/spec-test/vitest";
 import { CHECK_ITEMS, type CheckItem } from "@/lib/insure/types";
 import {
+  EXAMPLE_BILL,
   MAX_DRAFTS,
+  buildPayout,
+  computePayout,
   routeAfterVerify,
   summarize,
   topCatch,
@@ -29,6 +32,7 @@ function draftPolicy(findings: DraftPolicy["findings"]): DraftPolicy {
     premium: 600,
     premiumNote: "",
     findings,
+    payout: { deductible: 0, coPaymentPercent: 0, coPaymentCap: 0 },
   };
 }
 
@@ -140,4 +144,49 @@ test("[INSURE-HIGHLIGHT-001] The most important catch is the highest-severity fo
   // Nothing found means no headline catch.
   const noneFound = CHECK_ITEMS.map((k) => item(k, "not-stated", "info"));
   expect(topCatch(noneFound)).toBeNull();
+});
+
+test("[INSURE-DEDUCT-001] The worked payout example is computed correctly from the deductible and co-pay", () => {
+  // A bill at or below the deductible is fully self-paid.
+  expect(computePayout(1000, 3500, 5)).toEqual({
+    bill: 1000,
+    selfPaid: 1000,
+    insurerPaid: 0,
+  });
+
+  // A larger bill: deductible + co-payment of the remainder.
+  // 10000 - 3500 = 6500; 5% = 325; self 3825, insurer 6175.
+  expect(computePayout(EXAMPLE_BILL, 3500, 5)).toEqual({
+    bill: 10000,
+    selfPaid: 3825,
+    insurerPaid: 6175,
+  });
+
+  // The co-payment cap limits the insured's share.
+  // 100000 - 3500 = 96500; 5% = 4825, capped to 3000; self 6500, insurer 93500.
+  expect(computePayout(100000, 3500, 5, 3000)).toEqual({
+    bill: 100000,
+    selfPaid: 6500,
+    insurerPaid: 93500,
+  });
+});
+
+test("[INSURE-DEDUCT-002] Payout figures are only used when they appear in the document", () => {
+  const source =
+    "A deductible of $3,500 applies per policy year, after which a co-payment of 5% is charged.";
+
+  // The deductible and co-pay are present; the cap (9,999) is invented.
+  const grounded = buildPayout(
+    { deductible: 3500, coPaymentPercent: 5, coPaymentCap: 9999 },
+    source,
+  );
+  expect(grounded).toEqual({ deductible: 3500, coPayPercent: 5 });
+
+  // A deductible that does not appear in the source drops the whole payout,
+  // so no invented out-of-pocket figure is ever shown.
+  const fabricated = buildPayout(
+    { deductible: 8888, coPaymentPercent: 0, coPaymentCap: 0 },
+    source,
+  );
+  expect(fabricated).toBeUndefined();
 });

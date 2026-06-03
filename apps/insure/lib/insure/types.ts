@@ -27,6 +27,7 @@ export const CHECK_ITEMS = [
   "survival-period",
   "pre-existing",
   "exclusions",
+  "deductible",
   "co-payment",
   "claim-limits",
   "premium-guarantee",
@@ -40,7 +41,8 @@ export const CHECK_LABELS: Record<CheckKey, string> = {
   "survival-period": "Survival period",
   "pre-existing": "Pre-existing conditions",
   exclusions: "Key exclusions",
-  "co-payment": "Co-payment and deductible",
+  deductible: "Deductible",
+  "co-payment": "Co-payment and pro-ration",
   "claim-limits": "Claim and sub-limits",
   "premium-guarantee": "Premium guarantee",
   "free-look": "Free-look period",
@@ -57,8 +59,10 @@ export const CHECK_DESCRIPTIONS: Record<CheckKey, string> = {
     "Whether conditions you already had before the policy started are excluded or limited.",
   exclusions:
     "Specific situations, conditions or activities the policy will not pay for.",
+  deductible:
+    "The fixed amount you pay out of pocket before the policy pays anything. Bills at or below it are fully self-paid (the most common reason a claim does not pay out).",
   "co-payment":
-    "Any share of a claim you still pay yourself: deductible, co-insurance, co-payment or pro-ration (common on Integrated Shield riders).",
+    "The percentage share of a claim you still pay after the deductible: co-insurance, co-payment or pro-ration (common on Integrated Shield riders).",
   "claim-limits":
     "Caps on what can be claimed: per claim, per year, lifetime limits, or sub-limits on specific benefits.",
   "premium-guarantee":
@@ -82,6 +86,20 @@ export interface CheckItem {
   severity: CheckSeverity;
 }
 
+/**
+ * The out-of-pocket structure, used for a worked "will this pay out?" example.
+ * Every figure here is grounded: it is only set if the number appears in the
+ * document.
+ */
+export interface Payout {
+  /** Deductible / excess in SGD paid before the policy pays anything. */
+  deductible?: number;
+  /** Co-payment / co-insurance percentage charged after the deductible. */
+  coPayPercent?: number;
+  /** Annual cap in SGD on the co-payment, if stated. */
+  coPayCap?: number;
+}
+
 /** A single policy after it has been read and checked. */
 export interface PolicyCheck {
   id: string;
@@ -98,6 +116,8 @@ export interface PolicyCheck {
   premiumNote?: string;
   /** The full curated checklist, always one entry per CHECK_ITEMS key. */
   checklist: CheckItem[];
+  /** Grounded out-of-pocket figures, when the document states them. */
+  payout?: Payout;
   /** True when grounding had to set something aside. */
   needsReview?: boolean;
   /** Client-only: marks a pre-computed sample report loaded without an upload. */

@@ -76,6 +76,11 @@ async function draftNode(
       quote: f.quote,
       severity: f.severity,
     })),
+    payout: {
+      deductible: p.payout.deductible,
+      coPaymentPercent: p.payout.coPaymentPercent,
+      coPaymentCap: p.payout.coPaymentCap,
+    },
   }));
 
   return { draft, attempts: state.attempts + 1 };

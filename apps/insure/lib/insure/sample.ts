@@ -64,8 +64,13 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
         quote: "pre-existing conditions are not covered unless specifically declared and accepted by us",
         severity: "caution",
       },
+      deductible: {
+        detail: "You pay the first $3,500 of an eligible claim each policy year before the plan pays.",
+        quote: "a deductible of $3,500 applies per policy year before benefits are payable",
+        severity: "caution",
+      },
       "co-payment": {
-        detail: "A 5% co-payment applies to each claim unless you hold the rider that caps it.",
+        detail: "A 5% co-payment applies after the deductible, capped at $3,000 a year on panel doctors.",
         quote: "the insured shall bear a co-payment of 5 percent of the eligible claim amount",
         severity: "caution",
       },
@@ -75,6 +80,7 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
         severity: "watch",
       },
     }),
+    payout: { deductible: 3500, coPayPercent: 5, coPayCap: 3000 },
     needsReview: false,
   },
 ];

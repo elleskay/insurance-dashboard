@@ -65,6 +65,13 @@ export interface DraftFinding {
   severity: string;
 }
 
+/** Out-of-pocket figures the model extracts for the worked payout example. */
+export interface DraftPayout {
+  deductible: number;
+  coPaymentPercent: number;
+  coPaymentCap: number;
+}
+
 /** What the model returns for a single policy in the document. */
 export interface DraftPolicy {
   insurer: string;
@@ -75,6 +82,7 @@ export interface DraftPolicy {
   premium: number;
   premiumNote: string;
   findings: DraftFinding[];
+  payout: DraftPayout;
 }
 
 export interface GroundingIssue {
@@ -142,6 +150,77 @@ export function verifyGrounding(
     });
   });
   return issues;
+}
+
+/** The illustrative hospital bill used in the worked payout example. */
+export const EXAMPLE_BILL = 10_000;
+
+export interface PayoutSplit {
+  bill: number;
+  selfPaid: number;
+  insurerPaid: number;
+}
+
+/**
+ * The out-of-pocket split for a bill given a deductible and optional co-payment.
+ * A bill at or below the deductible is entirely self-paid; above it the insured
+ * pays the deductible plus the (optionally capped) co-payment, the insurer pays
+ * the rest. This is the maths behind "will this claim even pay out?".
+ */
+export function computePayout(
+  bill: number,
+  deductible: number,
+  coPayPercent = 0,
+  coPayCap = 0,
+): PayoutSplit {
+  if (bill <= deductible) return { bill, selfPaid: bill, insurerPaid: 0 };
+  const afterDeductible = bill - deductible;
+  let coPay = afterDeductible * (coPayPercent / 100);
+  if (coPayCap > 0) coPay = Math.min(coPay, coPayCap);
+  const selfPaid = Math.round(deductible + coPay);
+  return { bill, selfPaid, insurerPaid: bill - selfPaid };
+}
+
+/** A dollar figure is grounded if it appears in the raw source as digits or a
+ * comma-grouped number (for example 3500 or 3,500). */
+export function groundsAmount(n: number, rawSource: string): boolean {
+  return (
+    rawSource.includes(String(n)) ||
+    rawSource.includes(n.toLocaleString("en-US"))
+  );
+}
+
+/** A percentage is grounded if the document writes it as a percent. */
+export function groundsPercent(n: number, rawSource: string): boolean {
+  const s = rawSource.toLowerCase();
+  return (
+    s.includes(`${n}%`) ||
+    s.includes(`${n} percent`) ||
+    s.includes(`${n} per cent`)
+  );
+}
+
+/**
+ * Build the grounded payout for a policy: keep only figures the document
+ * actually states, so the worked example never shows an invented number. Returns
+ * undefined when there is no grounded deductible to anchor the example.
+ */
+export function buildPayout(
+  draft: DraftPayout,
+  rawSource: string,
+): { deductible?: number; coPayPercent?: number; coPayCap?: number } | undefined {
+  const out: { deductible?: number; coPayPercent?: number; coPayCap?: number } = {};
+  if (draft.deductible > 0 && groundsAmount(draft.deductible, rawSource)) {
+    out.deductible = Math.round(draft.deductible);
+  }
+  if (draft.coPaymentPercent > 0 && groundsPercent(draft.coPaymentPercent, rawSource)) {
+    out.coPayPercent = draft.coPaymentPercent;
+  }
+  if (draft.coPaymentCap > 0 && groundsAmount(draft.coPaymentCap, rawSource)) {
+    out.coPayCap = Math.round(draft.coPaymentCap);
+  }
+  // Anchor the worked example on a grounded deductible.
+  return out.deductible !== undefined ? out : undefined;
 }
 
 /**
@@ -223,6 +302,7 @@ export function summarize(
       premium: positiveAmount(policy.premium),
       premiumNote: policy.premiumNote.trim() || undefined,
       checklist,
+      payout: buildPayout(policy.payout, sourceText),
       needsReview: false,
     };
   });
@@ -285,6 +365,19 @@ export const checkDraftSchema = z.object({
           .describe(
             "Only the curated watch-out items you can actually find in the document, each with a verbatim supporting quote. Omit items the document does not mention rather than guessing.",
           ),
+        payout: z
+          .object({
+            deductible: z
+              .number()
+              .describe("Deductible or excess in SGD the insured pays before the policy pays anything, exactly as stated. 0 if not stated."),
+            coPaymentPercent: z
+              .number()
+              .describe("Co-payment or co-insurance percentage charged after the deductible (for example 5 for 5%). 0 if not stated."),
+            coPaymentCap: z
+              .number()
+              .describe("Any annual cap in SGD on the co-payment, exactly as stated. 0 if not stated."),
+          })
+          .describe("Out-of-pocket figures for the worked payout example. Use 0 for anything the document does not state. Do not estimate."),
       }),
     )
     .describe("One entry per distinct policy or plan found in the document."),

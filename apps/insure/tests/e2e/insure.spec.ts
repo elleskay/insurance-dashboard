@@ -11,6 +11,7 @@ const CHECK_ITEMS = [
   "survival-period",
   "pre-existing",
   "exclusions",
+  "deductible",
   "co-payment",
   "claim-limits",
   "premium-guarantee",
@@ -63,12 +64,18 @@ async function mockCheck(
             quote: "no benefit is payable for death resulting from suicide within one year",
             severity: "watch",
           },
+          deductible: {
+            detail: "You pay the first $3,500 of an eligible claim each year.",
+            quote: "a deductible of $3,500 applies per policy year",
+            severity: "caution",
+          },
           "free-look": {
             detail: "You can cancel within 14 days for a refund.",
             quote: "you may cancel this policy within 14 days of receiving it",
             severity: "info",
           },
         }),
+        payout: { deductible: 3500, coPayPercent: 5 },
         needsReview: false,
       },
     ],
@@ -231,6 +238,17 @@ test("[INSURE-HIGHLIGHT-002] a checked policy highlights its most important catc
   await expect(callout).toBeVisible();
   await expect(callout).toContainText(/most important catch/i);
   await expect(callout).toContainText(/caution/i);
+});
+
+test("[INSURE-DEDUCT-003] a policy with a deductible shows a will-it-pay-out explainer", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await uploadSample(page);
+  const explainer = page.getByTestId("payout-explainer").first();
+  await expect(explainer).toBeVisible();
+  await expect(explainer).toContainText("$3,500");
+  await expect(explainer).toContainText(/policy pays/i);
 });
 
 test("[INSURE-DEMO-001] a visitor can load a sample report without uploading a document", async ({

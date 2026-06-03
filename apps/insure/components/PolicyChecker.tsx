@@ -7,10 +7,16 @@ import {
   CHECK_LABELS,
   type CheckItem,
   type CheckSeverity,
+  type Payout,
   type PolicyCheck,
   type PolicyCheckData,
 } from "@/lib/insure/types";
-import { SEVERITY_RANK, topCatch } from "@/lib/insure/checker";
+import {
+  EXAMPLE_BILL,
+  SEVERITY_RANK,
+  computePayout,
+  topCatch,
+} from "@/lib/insure/checker";
 import { SAMPLE_CHECKS } from "@/lib/insure/sample";
 
 const STORAGE_KEY = "insure.checks.v1";
@@ -297,6 +303,11 @@ function PolicyCard({
         </div>
       ) : null}
 
+      {/* Will a claim pay out? Grounded deductible / co-pay worked example. */}
+      {check.payout?.deductible !== undefined ? (
+        <PayoutExplainer payout={check.payout} />
+      ) : null}
+
       {/* What to watch for */}
       <div>
         <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
@@ -309,6 +320,53 @@ function PolicyCard({
         </ul>
       </div>
     </article>
+  );
+}
+
+function PayoutExplainer({ payout }: { payout: Payout }) {
+  const deductible = payout.deductible ?? 0;
+  const split = computePayout(
+    EXAMPLE_BILL,
+    deductible,
+    payout.coPayPercent ?? 0,
+    payout.coPayCap ?? 0,
+  );
+  return (
+    <div
+      data-testid="payout-explainer"
+      className="rounded-2xl border border-border bg-surface/70 p-4"
+    >
+      <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+        Will a claim pay out?
+      </p>
+      <p className="mt-1.5 text-sm text-foreground">
+        Bills at or below{" "}
+        <span className="font-semibold text-heading">{sgd(deductible)}</span> (your
+        deductible) are fully self-paid. This is the most common reason a claim
+        does not pay.
+        {payout.coPayPercent !== undefined ? (
+          <>
+            {" "}
+            Above that you also pay {payout.coPayPercent}% co-payment
+            {payout.coPayCap !== undefined ? `, capped at ${sgd(payout.coPayCap)} a year` : ""}.
+          </>
+        ) : null}
+      </p>
+      <div className="mt-2.5 grid grid-cols-3 gap-2 rounded-xl bg-card p-3 text-sm">
+        <div>
+          <p className="text-muted-foreground">A {sgd(EXAMPLE_BILL)} bill</p>
+          <p className="font-semibold text-heading">{sgd(split.bill)}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">You pay</p>
+          <p className="font-semibold text-danger">{sgd(split.selfPaid)}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">Policy pays</p>
+          <p className="font-semibold text-ok">{sgd(split.insurerPaid)}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
