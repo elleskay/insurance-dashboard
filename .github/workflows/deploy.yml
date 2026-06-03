@@ -3,6 +3,11 @@ name: Deploy
 on:
   push:
     branches: [main]
+    # Documentation-only changes do not affect the deployed artifact, so skip
+    # the deploy for them. Use workflow_dispatch to force a deploy if needed.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   workflow_dispatch:
     inputs:
       environment:
