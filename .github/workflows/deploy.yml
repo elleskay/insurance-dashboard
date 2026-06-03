@@ -112,6 +112,12 @@ jobs:
           restore-keys: |
             nextjs-deploy-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
 
+      # The app's test specs import @platform/spec-test, whose dist is gitignored
+      # and not produced by npm ci. next build type-checks those specs, so build
+      # the package first or the production build fails to resolve it.
+      - name: Build platform spec-test package
+        run: npm run build --workspace packages/spec-test
+
       - name: Build Next.js with OpenNext
         working-directory: ${{ env.APP_DIR }}
         env:
