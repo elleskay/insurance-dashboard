@@ -26,6 +26,10 @@ Upload a Singapore insurance policy PDF and CoverLens reads it for you: a plain-
 
 ![Fine-print checklist](docs/screenshots/fineprint.png)
 
+**Will a claim pay out?** The most common real-world reason a claim does not pay is the bill being at or below the deductible. When the document states a deductible and co-payment, the checker shows a worked example, using only figures it can find in your document.
+
+![Deductible payout explainer](docs/screenshots/deductible.png)
+
 ## How it works
 
 From a dropped PDF to a grounded breakdown, in one flow.
