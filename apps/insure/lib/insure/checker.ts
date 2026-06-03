@@ -22,8 +22,32 @@ import {
  * model.
  */
 
-/** Up to three drafts: the first plus two revisions. */
-export const MAX_DRAFTS = 3;
+/** Up to two drafts: the first plus one revision. Bounds the worst-case number
+ * of paid model calls per request. */
+export const MAX_DRAFTS = 2;
+
+/** How loudly a found watch-out should be flagged. Higher is more serious. */
+export const SEVERITY_RANK: Record<CheckSeverity, number> = {
+  caution: 3,
+  watch: 2,
+  info: 1,
+};
+
+/**
+ * The single most important catch in a checklist: the highest-severity found
+ * item, breaking ties by the curated order (which CHECK_ITEMS already encodes).
+ * Returns null when nothing was found. Used to surface one headline per policy.
+ */
+export function topCatch(checklist: CheckItem[]): CheckItem | null {
+  let best: CheckItem | null = null;
+  for (const item of checklist) {
+    if (item.status !== "found") continue;
+    if (!best || SEVERITY_RANK[item.severity] > SEVERITY_RANK[best.severity]) {
+      best = item;
+    }
+  }
+  return best;
+}
 
 /** A quote shorter than this (after normalisation) is too weak to trust as
  * grounding, so it is treated as ungrounded. */

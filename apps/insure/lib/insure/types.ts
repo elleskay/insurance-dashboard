@@ -100,6 +100,8 @@ export interface PolicyCheck {
   checklist: CheckItem[];
   /** True when grounding had to set something aside. */
   needsReview?: boolean;
+  /** Client-only: marks a pre-computed sample report loaded without an upload. */
+  sample?: boolean;
 }
 
 /** The server returns checked policies without a client id; the UI assigns one. */

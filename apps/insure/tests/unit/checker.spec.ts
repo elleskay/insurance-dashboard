@@ -1,9 +1,10 @@
 import { test, expect } from "@platform/spec-test/vitest";
-import { CHECK_ITEMS } from "@/lib/insure/types";
+import { CHECK_ITEMS, type CheckItem } from "@/lib/insure/types";
 import {
   MAX_DRAFTS,
   routeAfterVerify,
   summarize,
+  topCatch,
   verifyGrounding,
   type DraftPolicy,
 } from "@/lib/insure/checker";
@@ -116,4 +117,27 @@ test("[INSURE-CHECK-003] Every checked policy reports the full curated checklist
     expect(checklist.find((i) => i.key === "waiting-period")?.status).toBe("found");
     expect(checklist.find((i) => i.key === "free-look")?.status).toBe("found");
     expect(checklist.find((i) => i.key === "co-payment")?.status).toBe("not-stated");
+});
+
+function item(
+  key: CheckItem["key"],
+  status: CheckItem["status"],
+  severity: CheckItem["severity"],
+): CheckItem {
+  return { key, status, severity, detail: status === "found" ? "d" : "", quote: "" };
+}
+
+test("[INSURE-HIGHLIGHT-001] The most important catch is the highest-severity found watch-out", () => {
+  const checklist: CheckItem[] = [
+    item("waiting-period", "found", "watch"),
+    item("co-payment", "found", "caution"),
+    item("free-look", "found", "info"),
+    item("exclusions", "not-stated", "info"),
+  ];
+  // caution beats watch beats info.
+  expect(topCatch(checklist)?.key).toBe("co-payment");
+
+  // Nothing found means no headline catch.
+  const noneFound = CHECK_ITEMS.map((k) => item(k, "not-stated", "info"));
+  expect(topCatch(noneFound)).toBeNull();
 });

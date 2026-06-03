@@ -10,6 +10,8 @@ import {
   type PolicyCheck,
   type PolicyCheckData,
 } from "@/lib/insure/types";
+import { SEVERITY_RANK, topCatch } from "@/lib/insure/checker";
+import { SAMPLE_CHECKS } from "@/lib/insure/sample";
 
 const STORAGE_KEY = "insure.checks.v1";
 
@@ -57,6 +59,15 @@ export function PolicyChecker() {
 
   function addChecked(policies: PolicyCheckData[]) {
     const added: PolicyCheck[] = policies.map((p) => ({ ...p, id: newId() }));
+    setChecks((c) => [...c, ...added]);
+  }
+
+  function loadSample() {
+    const added: PolicyCheck[] = SAMPLE_CHECKS.map((p) => ({
+      ...p,
+      id: newId(),
+      sample: true,
+    }));
     setChecks((c) => [...c, ...added]);
   }
 
@@ -121,6 +132,14 @@ export function PolicyChecker() {
             Upload a policy PDF above and we will explain what it covers and flag
             the fine print, with the exact wording from your document.
           </p>
+          <button
+            type="button"
+            data-testid="load-sample"
+            onClick={loadSample}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-primary transition-colors hover:border-primary hover:bg-primary/5"
+          >
+            No document handy? See a sample report
+          </button>
         </section>
       ) : (
         <section className="flex flex-col gap-6">
@@ -159,6 +178,16 @@ function PolicyCard({
   check: PolicyCheck;
   onRemove: () => void;
 }) {
+  const top = topCatch(check.checklist);
+  // Show found watch-outs first, most serious at the top; not-stated after.
+  const ordered = [...check.checklist].sort((a, b) => {
+    const af = a.status === "found" ? 1 : 0;
+    const bf = b.status === "found" ? 1 : 0;
+    if (af !== bf) return bf - af;
+    if (af === 1) return SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity];
+    return 0;
+  });
+
   return (
     <article
       data-testid="policy-check"
@@ -171,6 +200,14 @@ function PolicyCard({
             <span className="rounded-full bg-surface px-2.5 py-0.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
               {CATEGORY_LABELS[check.category]}
             </span>
+            {check.sample ? (
+              <span
+                data-testid="sample-badge"
+                className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary"
+              >
+                Sample
+              </span>
+            ) : null}
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">{check.insurer}</p>
         </div>
@@ -232,13 +269,41 @@ function PolicyCard({
         ) : null}
       </div>
 
+      {/* The single headline catch */}
+      {top ? (
+        <div
+          data-testid="top-catch"
+          className="rounded-2xl border border-border bg-surface/70 p-4"
+        >
+          <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            Most important catch
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: SEVERITY[top.severity].dot }}
+            />
+            <span className="font-semibold text-heading">
+              {CHECK_LABELS[top.key]}
+            </span>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${SEVERITY[top.severity].pill}`}
+            >
+              {SEVERITY[top.severity].label}
+            </span>
+          </div>
+          <p className="mt-1.5 text-sm text-muted-foreground">{top.detail}</p>
+        </div>
+      ) : null}
+
       {/* What to watch for */}
       <div>
         <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           What to watch for
         </h4>
         <ul data-testid="checklist" className="mt-2 grid grid-cols-1 gap-2.5">
-          {check.checklist.map((item) => (
+          {ordered.map((item) => (
             <ChecklistRow key={item.key} item={item} />
           ))}
         </ul>

@@ -221,6 +221,33 @@ test("[INSURE-A11Y-002] the supporting-quote disclosure is operable by keyboard"
   await expect(quote).toContainText(SAMPLE_QUOTE);
 });
 
+test("[INSURE-HIGHLIGHT-002] a checked policy highlights its most important catch", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await uploadSample(page);
+  // The sample's most serious found item is the 90-day waiting period (caution).
+  const callout = page.getByTestId("top-catch").first();
+  await expect(callout).toBeVisible();
+  await expect(callout).toContainText(/most important catch/i);
+  await expect(callout).toContainText(/caution/i);
+});
+
+test("[INSURE-DEMO-001] a visitor can load a sample report without uploading a document", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByTestId("empty-state")).toBeVisible();
+  await page.getByTestId("load-sample").click();
+  // A clearly-labelled sample policy appears with its summary and checklist.
+  await expect(page.getByTestId("policy-check").first()).toBeVisible();
+  await expect(page.getByTestId("sample-badge").first()).toBeVisible();
+  await expect(page.getByTestId("check-summary").first()).not.toBeEmpty();
+  await expect(
+    page.getByTestId("policy-check").first().getByTestId("checklist-item"),
+  ).toHaveCount(CHECK_ITEMS.length);
+});
+
 test("[INSURE-JOURNEY-001] upload a policy and see its summary plus a grounded fine-print checklist", async ({
   page,
 }) => {

@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { runChecker } from "@/lib/insure/checker-graph";
+import {
+  clientId,
+  configuredOrigins,
+  isOriginAllowed,
+  rateOk,
+} from "@/lib/insure/security";
 
 export const runtime = "nodejs";
 // The grounding loop can run several model passes, so allow more headroom.
@@ -12,6 +18,18 @@ const RequestSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  // Abuse guards: this route fires paid model calls, so refuse cross-origin
+  // callers (in production) and clients that exceed the per-window budget.
+  if (!isOriginAllowed(req.headers.get("origin"), configuredOrigins())) {
+    return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+  if (!rateOk(clientId(req), Date.now())) {
+    return Response.json(
+      { error: "Too many requests. Please wait a moment and try again." },
+      { status: 429 },
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();

@@ -149,6 +149,46 @@ requirements:
     then: It clearly states that the document text is sent to an AI service to read the policy (it does not claim the document never leaves the browser)
     tags: [privacy, ai, transparency]
 
+  - id: INSURE-SEC-003
+    title: The checker route guards against cross-origin and rapid-fire abuse
+    category: data
+    severity: high
+    given: A configured allow-list of origins and a per-client request budget
+    when: A request arrives from a disallowed origin, or a client exceeds the budget in the window
+    then: The origin guard rejects requests whose origin is not allowed (while permitting same-origin and unconfigured local use), and the rate guard refuses further requests once the budget is spent
+    tags: [security, abuse, rate-limit]
+
+  # ---------------------------------------------------------------------------
+  # DEEPER OUTPUT + DEMO (Vitest + Playwright)
+  # ---------------------------------------------------------------------------
+  - id: INSURE-HIGHLIGHT-001
+    title: The most important catch is the highest-severity found watch-out
+    category: data
+    severity: medium
+    given: A checklist with found watch-outs of mixed severity
+    when: The most important catch is computed
+    then: It returns the highest-severity found item (caution over watch over info), or nothing when no watch-out was found
+    tags: [highlight, severity]
+
+  - id: INSURE-HIGHLIGHT-002
+    title: A checked policy highlights its most important catch
+    category: ui
+    severity: medium
+    given: A checked policy that has at least one found watch-out
+    when: Its card renders
+    then: The single most important catch is surfaced as a highlighted callout, above the full checklist
+    tags: [highlight]
+    depends_on: [INSURE-FINEPRINT-001]
+
+  - id: INSURE-DEMO-001
+    title: A visitor can load a sample report without uploading a document
+    category: functional
+    severity: medium
+    given: A first visit with nothing uploaded
+    when: The visitor chooses to see a sample
+    then: A clearly labelled sample policy is shown with its summary and fine-print checklist, so the app can be tried without a real document
+    tags: [demo, onboarding]
+
   # ---------------------------------------------------------------------------
   # ACCESSIBILITY (Playwright + axe)
   # ---------------------------------------------------------------------------
