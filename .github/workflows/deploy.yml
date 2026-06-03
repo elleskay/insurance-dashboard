@@ -146,5 +146,16 @@ jobs:
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "Deployed: $URL"
 
+      # The platform smoke script assumes an auth app (/api/health, redirect to
+      # /login). This app is a public single page, so check what it actually
+      # exposes: the page returns 200 and the checker route rejects a GET.
       - name: Smoke test
-        run: ./scripts/verify-deploy.sh "${{ steps.cdk.outputs.url }}"
+        run: |
+          URL="${{ steps.cdk.outputs.url }}"
+          root=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 15 "$URL/")
+          echo "GET / -> $root"
+          [ "$root" = "200" ] || { echo "::error::root did not return 200"; exit 1; }
+          api=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 15 "$URL/api/check")
+          echo "GET /api/check -> $api"
+          case "$api" in 404|405) ;; *) echo "::error::/api/check unexpected status $api"; exit 1;; esac
+          echo "Smoke test passed."
