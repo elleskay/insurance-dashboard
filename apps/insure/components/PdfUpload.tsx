@@ -1,21 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { ExtractedPolicy } from "@/lib/insure/types";
+import type { PolicyCheckData } from "@/lib/insure/types";
 
-export interface ParsedUpload {
-  fileName: string;
-  extracted: ExtractedPolicy;
-  /** Fields we could not read with confidence (need a human glance). */
-  missing: ("category" | "sumAssured" | "annualPremium")[];
+export interface CheckResponse {
+  policies: PolicyCheckData[];
+  needsReview: boolean;
 }
 
 async function readPdfText(file: File): Promise<string> {
   const buf = await file.arrayBuffer();
   const pdfjs = await import("pdfjs-dist");
   // The worker is bundled with the app (emitted as a /_next/static asset and
-  // served from our own origin), so the PDF is read in memory and never leaves
-  // the browser.
+  // served from our own origin), so the PDF is read in memory in the browser.
   pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.min.mjs",
     import.meta.url,
@@ -33,21 +30,21 @@ async function readPdfText(file: File): Promise<string> {
   return text;
 }
 
-async function extractViaApi(text: string): Promise<ExtractedPolicy[]> {
-  const res = await fetch("/api/extract", {
+async function checkViaApi(text: string): Promise<PolicyCheckData[]> {
+  const res = await fetch("/api/check", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: text.slice(0, 60_000) }),
   });
-  if (!res.ok) throw new Error("extract failed");
-  const data = (await res.json()) as { policies?: ExtractedPolicy[] };
+  if (!res.ok) throw new Error("check failed");
+  const data = (await res.json()) as Partial<CheckResponse>;
   return Array.isArray(data.policies) ? data.policies : [];
 }
 
 export function PdfUpload({
-  onParsed,
+  onChecked,
 }: {
-  onParsed: (results: ParsedUpload[]) => void;
+  onChecked: (policies: PolicyCheckData[]) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -55,38 +52,37 @@ export function PdfUpload({
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFiles(files: FileList | File[]) {
-    const list = Array.from(files).filter((f) => /pdf$/i.test(f.name) || f.type === "application/pdf");
+    const list = Array.from(files).filter(
+      (f) => /pdf$/i.test(f.name) || f.type === "application/pdf",
+    );
     if (list.length === 0) return;
     setBusy(true);
-    setStatus(`Reading ${list.length} document${list.length > 1 ? "s" : ""} and extracting with AI...`);
-    const results: ParsedUpload[] = [];
+    setStatus(
+      `Reading ${list.length} document${list.length > 1 ? "s" : ""} and checking the fine print...`,
+    );
+    const checked: PolicyCheckData[] = [];
     let failed = 0;
     for (const file of list) {
       try {
         const text = await readPdfText(file);
-        const extractedList = await extractViaApi(text);
-        if (extractedList.length === 0) {
+        const policies = await checkViaApi(text);
+        if (policies.length === 0) {
           failed += 1;
           continue;
         }
-        for (const extracted of extractedList) {
-          const missing: ParsedUpload["missing"] = [];
-          if (extracted.category === undefined) missing.push("category");
-          if (extracted.sumAssured === undefined) missing.push("sumAssured");
-          if (extracted.annualPremium === undefined) missing.push("annualPremium");
-          results.push({ fileName: file.name, extracted, missing });
-        }
+        checked.push(...policies);
       } catch {
         failed += 1;
       }
     }
-    if (results.length > 0) onParsed(results);
-    const added = results.length;
-    const needs = results.filter((r) => r.missing.length > 0).length;
+    if (checked.length > 0) onChecked(checked);
     const parts: string[] = [];
-    if (added > 0) parts.push(`Added ${added} polic${added > 1 ? "ies" : "y"} to your dashboard.`);
-    if (needs > 0) parts.push(`${needs} need${needs > 1 ? "" : "s"} a quick check below.`);
-    if (failed > 0) parts.push(`${failed} could not be read; add ${failed > 1 ? "those" : "it"} by hand below.`);
+    if (checked.length > 0)
+      parts.push(
+        `Checked ${checked.length} polic${checked.length > 1 ? "ies" : "y"}.`,
+      );
+    if (failed > 0)
+      parts.push(`${failed} could not be read; try a different PDF.`);
     setStatus(parts.join(" ") || "Nothing to read in that file.");
     setBusy(false);
     if (inputRef.current) inputRef.current.value = "";
@@ -107,11 +103,24 @@ export function PdfUpload({
           if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
         }}
         className={`group flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
-          dragging ? "border-primary bg-primary/5" : "border-border bg-surface/50 hover:border-primary/60"
+          dragging
+            ? "border-primary bg-primary/5"
+            : "border-border bg-surface/50 hover:border-primary/60"
         }`}
       >
-        <span aria-hidden="true" className="btn-gradient grid h-12 w-12 place-items-center rounded-2xl text-white shadow-card">
-          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <span
+          aria-hidden="true"
+          className="btn-gradient grid h-12 w-12 place-items-center rounded-2xl text-white shadow-card"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M12 16V4M7 9l5-5 5 5" />
             <path d="M5 16v2a2 2 0 002 2h10a2 2 0 002-2v-2" />
           </svg>
@@ -120,7 +129,8 @@ export function PdfUpload({
           {busy ? "Reading your documents..." : "Drop your policy PDFs here"}
         </span>
         <span className="text-sm text-muted-foreground">
-          or click to choose files. AI reads them and builds your summary automatically.
+          or click to choose files. The checker reads each one and explains it in
+          plain language.
         </span>
         <input
           id="pdf-input"
@@ -137,10 +147,10 @@ export function PdfUpload({
         />
       </label>
       <p data-testid="privacy-note" className="text-sm text-muted-foreground">
-        The text from your document is read in your browser and then sent to our
-        AI extraction service to pull out the figures, so you do not have to type
-        them. We do not store your documents. Avoid uploading anything you are
-        not comfortable sharing with an AI service.
+        The text from your document is read in your browser and then sent to an
+        AI service to read your policy and surface the fine print. We do not
+        store your documents. Avoid uploading anything you are not comfortable
+        sharing with an AI service.
       </p>
       {status ? (
         <p role="status" className="text-sm font-medium text-primary">

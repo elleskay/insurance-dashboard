@@ -5,44 +5,77 @@ import AxeBuilder from "@axe-core/playwright";
 // Resolved relative to the Playwright working directory (apps/insure).
 const SAMPLE_PDF = "tests/fixtures/sample-policy.pdf";
 
-// Stub the AI extraction route so e2e is deterministic and offline. The real
-// route calls an LLM; here we return the figures the sample policy implies.
-async function mockExtract(
-  page: Page,
-  policies: Array<Record<string, unknown>> = [
-    { insurer: "AIA", name: "Secure Term Life", category: "life", sumAssured: 500000, annualPremium: 600 },
-  ],
-): Promise<void> {
-  await page.route("**/api/extract", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ policies }),
-    }),
-  );
+// The curated checklist keys, inlined so the e2e does not depend on app imports.
+const CHECK_ITEMS = [
+  "waiting-period",
+  "survival-period",
+  "pre-existing",
+  "exclusions",
+  "co-payment",
+  "claim-limits",
+  "premium-guarantee",
+  "free-look",
+] as const;
+
+type Found = {
+  detail: string;
+  quote: string;
+  severity: "info" | "watch" | "caution";
+};
+
+// Build a full 8-item checklist: keys in `found` are marked found with their
+// detail/quote, the rest are not-stated. Mirrors what summarize() returns.
+function checklist(found: Partial<Record<string, Found>>) {
+  return CHECK_ITEMS.map((key) => {
+    const f = found[key];
+    return f
+      ? { key, status: "found", detail: f.detail, quote: f.quote, severity: f.severity }
+      : { key, status: "not-stated", detail: "", quote: "", severity: "info" };
+  });
 }
 
-// Stub the advisor route so e2e is deterministic and offline. The real route
-// runs a LangGraph self-correction loop against an LLM; here we return a fixed,
-// already-grounded response.
-async function mockAdvise(
+const SAMPLE_QUOTE = "a waiting period of 90 days applies to critical illness";
+
+// Stub the checker route so e2e is deterministic and offline. The real route
+// runs a LangGraph grounding loop against an LLM; here we return a fixed checked
+// policy with a complete checklist.
+async function mockCheck(
   page: Page,
   body: Record<string, unknown> = {
-    recommendations: [
+    policies: [
       {
-        id: "life-0",
+        insurer: "AIA",
+        name: "Secure Term Life",
         category: "life",
-        title: "Close your death and TPD gap",
-        detail: "Your life cover is below the 9x-income benchmark.",
-        severity: "high",
-        citedGap: 400000,
+        summary:
+          "This is a term life policy that pays a lump sum if you die or are diagnosed as totally and permanently disabled during the policy term.",
+        benefitAmount: 500000,
+        premium: 600,
+        premiumNote: "",
+        checklist: checklist({
+          "waiting-period": {
+            detail: "Critical illness cover only begins 90 days after the start date.",
+            quote: SAMPLE_QUOTE,
+            severity: "caution",
+          },
+          exclusions: {
+            detail: "Death by suicide in the first year is not covered.",
+            quote: "no benefit is payable for death resulting from suicide within one year",
+            severity: "watch",
+          },
+          "free-look": {
+            detail: "You can cancel within 14 days for a refund.",
+            quote: "you may cancel this policy within 14 days of receiving it",
+            severity: "info",
+          },
+        }),
+        needsReview: false,
       },
     ],
     needsReview: false,
-    confidence: 1,
   },
 ): Promise<void> {
-  await page.route("**/api/advise", (route) =>
+  await page.route("**/api/check", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -51,26 +84,11 @@ async function mockAdvise(
   );
 }
 
-// Upload the sample life policy and wait for it to be added to the dashboard.
+// Upload the sample policy and wait for its checked card to appear.
 async function uploadSample(page: Page): Promise<void> {
-  await mockExtract(page);
+  await mockCheck(page);
   await page.getByTestId("pdf-input").setInputFiles(SAMPLE_PDF);
-  await expect(page.getByTestId("policy-row")).toHaveCount(1, { timeout: 20_000 });
-}
-
-// Add a policy by hand via the fallback, then fill its inline row fields.
-async function addManualPolicy(
-  page: Page,
-  opts: { insurer?: string; category: string; sum: number; premium: number },
-): Promise<void> {
-  const before = await page.getByTestId("policy-row").count();
-  await page.getByTestId("add-manual").click();
-  await expect(page.getByTestId("policy-row")).toHaveCount(before + 1);
-  const row = page.getByTestId("policy-row").last();
-  if (opts.insurer) await row.getByLabel("Insurer").fill(opts.insurer);
-  await row.getByLabel("Category").selectOption(opts.category);
-  await row.getByLabel("Sum assured (SGD)").fill(String(opts.sum));
-  await row.getByLabel("Annual premium (SGD)").fill(String(opts.premium));
+  await expect(page.getByTestId("policy-check")).toHaveCount(1, { timeout: 20_000 });
 }
 
 function seriousViolationIds(
@@ -91,100 +109,75 @@ test("[INSURE-UPLOAD-001] the page offers PDF upload with a note on how document
   await expect(page.getByTestId("privacy-note")).not.toBeEmpty();
 });
 
-test("[INSURE-UPLOAD-002] uploading a policy PDF builds the summary with no manual data entry", async ({
+test("[INSURE-UPLOAD-002] uploading a policy PDF produces a summary and a fine-print checklist with no manual entry", async ({
   page,
 }) => {
   await page.goto("/");
   await uploadSample(page);
-  // The policy and its figures came purely from the document.
-  await expect(
-    page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
-  ).toContainText("$500,000");
-  await expect(page.getByTestId("premium-panel")).toContainText("$600");
-  await expect(page.getByTestId("policy-row").getByLabel("Insurer")).toHaveValue("AIA");
+  // Everything on the card came from the document, with no typing.
+  const card = page.getByTestId("policy-check");
+  await expect(card).toContainText("AIA");
+  await expect(card).toContainText("Secure Term Life");
+  await expect(card.getByTestId("check-summary")).not.toBeEmpty();
+  await expect(card.getByTestId("checklist-item")).toHaveCount(CHECK_ITEMS.length);
 });
 
-test("[INSURE-REVIEW-001] an extracted policy can be corrected inline without re-entering it", async ({
+test("[INSURE-SUMMARY-001] each checked policy shows a plain-language summary of what it covers", async ({
   page,
 }) => {
   await page.goto("/");
   await uploadSample(page);
-  const row = page.getByTestId("policy-row").first();
-  await row.getByLabel("Sum assured (SGD)").fill("600000");
-  await expect(
-    page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
-  ).toContainText("$600,000");
-  // The rest of the policy is preserved.
-  await expect(row.getByLabel("Insurer")).toHaveValue("AIA");
+  await expect(page.getByTestId("check-summary")).toContainText(/pays a lump sum/i);
 });
 
-test("[INSURE-REVIEW-002] a policy can be removed", async ({ page }) => {
+test("[INSURE-FINEPRINT-001] each checked policy shows the curated watch-out checklist with a status per item", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await uploadSample(page);
+  await expect(page.getByTestId("checklist-item")).toHaveCount(CHECK_ITEMS.length);
+  // Both found and not-stated items are present and labelled.
+  await expect(
+    page.locator('[data-testid="checklist-item"][data-status="found"]').first(),
+  ).toBeVisible();
+  await expect(
+    page.locator('[data-testid="checklist-item"][data-status="not-stated"]').first(),
+  ).toContainText(/not stated/i);
+});
+
+test("[INSURE-FINEPRINT-002] a found watch-out shows the supporting quote from the user's document", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await uploadSample(page);
+  const quote = page.getByTestId("check-quote").first();
+  await quote.locator("summary").click();
+  await expect(quote).toContainText(SAMPLE_QUOTE);
+});
+
+test("[INSURE-REVIEW-001] a checked policy can be removed", async ({ page }) => {
   await page.goto("/");
   await uploadSample(page);
   await page.getByRole("button", { name: /Remove/ }).click();
-  await expect(page.getByTestId("policy-row")).toHaveCount(0);
+  await expect(page.getByTestId("policy-check")).toHaveCount(0);
   await expect(page.getByTestId("empty-state")).toBeVisible();
 });
 
-test("[INSURE-DASH-001] coverage by category is shown with totals", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await uploadSample(page);
-  await expect(page.getByTestId("category-card")).toHaveCount(5);
-  await expect(
-    page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
-  ).toContainText("$500,000");
-});
-
-test("[INSURE-DASH-002] adequacy shows death/TPD vs 9x and CI vs 4x of income", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await uploadSample(page);
-  await addManualPolicy(page, {
-    insurer: "Great Eastern",
-    category: "critical-illness",
-    sum: 100000,
-    premium: 400,
-  });
-  await page.getByLabel("Your annual income (SGD)").fill("100000");
-  const life = page.getByTestId("adequacy-life");
-  await expect(life).toContainText("$900,000");
-  await expect(life).toContainText("$500,000");
-  await expect(life).toContainText("$400,000");
-  const ci = page.getByTestId("adequacy-ci");
-  await expect(ci).toContainText("$400,000");
-  await expect(ci).toContainText("$100,000");
-});
-
-test("[INSURE-DASH-003] total premium and its share of income are shown against the guideline", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await uploadSample(page);
-  await page.getByLabel("Your annual income (SGD)").fill("100000");
-  const panel = page.getByTestId("premium-panel");
-  await expect(panel).toContainText("$600");
-  await expect(panel).toContainText("0.6%");
-  await expect(panel).toContainText(/15%/);
-});
-
-test("[INSURE-DASH-004] an empty state guides the user before any policy exists", async ({
+test("[INSURE-EMPTY-001] an empty state guides the user before any policy is checked", async ({
   page,
 }) => {
   await page.goto("/");
   await expect(page.getByTestId("empty-state")).toBeVisible();
 });
 
-test("[INSURE-TRUST-001] a not-advice disclaimer with cited benchmarks and a date is present", async ({
+test("[INSURE-TRUST-001] a not-advice disclaimer with a reviewed date is present", async ({
   page,
 }) => {
   await page.goto("/");
   const disclaimer = page.getByTestId("disclaimer");
   await expect(disclaimer).toContainText(/not financial advice/i);
-  await expect(disclaimer).toContainText(/LIA|MoneySense/);
-  await expect(page.getByTestId("reviewed")).toContainText("2026-05-31");
+  await expect(disclaimer).toContainText(/policy wording|policy document/i);
+  await expect(page.getByTestId("reviewed")).toContainText("2026-06-03");
 });
 
 test("[INSURE-SEC-001] the app is usable without authentication", async ({
@@ -207,92 +200,38 @@ test("[INSURE-SEC-002] the app discloses that document text is sent to an AI ser
   await expect(note).not.toContainText(/never (uploaded|leaves)/i);
 });
 
-test("[INSURE-A11Y-001] the dashboard has no critical accessibility violations", async ({
+test("[INSURE-A11Y-001] the checked-policy view has no critical accessibility violations", async ({
   page,
 }) => {
   await page.goto("/");
   await uploadSample(page);
-  await page.getByLabel("Your annual income (SGD)").fill("100000");
   const results = await new AxeBuilder({ page }).analyze();
   expect(seriousViolationIds(results.violations)).toEqual([]);
 });
 
-test("[INSURE-A11Y-002] adding and editing a policy by hand is operable by keyboard", async ({
+test("[INSURE-A11Y-002] the supporting-quote disclosure is operable by keyboard", async ({
   page,
 }) => {
   await page.goto("/");
-  // Open the manual fallback and add a row with the keyboard only.
-  await page.getByTestId("add-manual").focus();
+  await uploadSample(page);
+  const quote = page.getByTestId("check-quote").first();
+  const summary = quote.locator("summary");
+  await summary.focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("policy-row")).toHaveCount(1);
-  const row = page.getByTestId("policy-row").first();
-  await row.getByLabel("Insurer").focus();
-  await page.keyboard.type("Manual Co");
-  await row.getByLabel("Sum assured (SGD)").focus();
-  await page.keyboard.type("250000");
-  await expect(row.getByLabel("Insurer")).toHaveValue("Manual Co");
-  await expect(
-    page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
-  ).toContainText("$250,000");
+  await expect(quote).toContainText(SAMPLE_QUOTE);
 });
 
-test("[INSURE-JOURNEY-001] upload a policy, add income, and see coverage and an adequacy gap", async ({
+test("[INSURE-JOURNEY-001] upload a policy and see its summary plus a grounded fine-print checklist", async ({
   page,
 }) => {
   await page.goto("/");
   await uploadSample(page);
-  await addManualPolicy(page, {
-    insurer: "Great Eastern",
-    category: "critical-illness",
-    sum: 100000,
-    premium: 500,
-  });
-  await page.getByLabel("Your annual income (SGD)").fill("100000");
+  // One unbroken flow: summary, the watch-out checklist, and a traceable quote.
+  await expect(page.getByTestId("check-summary")).toContainText(/pays a lump sum/i);
   await expect(
-    page.getByTestId("category-card").filter({ hasText: "Life (death and TPD)" }),
-  ).toContainText("$500,000");
-  await expect(page.getByTestId("premium-panel")).toContainText("$1,100");
-  await expect(page.getByTestId("adequacy-life")).toContainText("$400,000");
-});
-
-test("[INSURE-ADVISOR-003] a user can request advice and see recommendations tied to their actual gaps", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await uploadSample(page); // life cover 500,000 from the document
-  await mockAdvise(page);
-  await page.getByLabel("Your annual income (SGD)").fill("100000");
-  // One unbroken flow: upload, set income, request advice.
-  await page.getByTestId("get-advice").click();
-  const item = page.getByTestId("advice-item").first();
-  await expect(item).toBeVisible();
-  await expect(item).toContainText("Close your death and TPD gap");
-  // The suggestion references the user's real computed gap (900k target - 500k cover).
-  await expect(item).toContainText("$400,000");
-});
-
-test("[INSURE-ADVISOR-004] advice that could not be verified is flagged for review, not shown as certain", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await uploadSample(page);
-  await mockAdvise(page, {
-    recommendations: [
-      {
-        id: "life-0",
-        category: "life",
-        title: "Close your death and TPD gap",
-        detail: "Your life cover is below the benchmark.",
-        severity: "high",
-        citedGap: 400000,
-      },
-    ],
-    needsReview: true,
-    confidence: 0.5,
-  });
-  await page.getByLabel("Your annual income (SGD)").fill("100000");
-  await page.getByTestId("get-advice").click();
-  const review = page.getByTestId("advice-review");
-  await expect(review).toBeVisible();
-  await expect(review).toContainText(/set aside|could not match|review|adviser/i);
+    page.locator('[data-testid="checklist-item"][data-status="found"]').first(),
+  ).toBeVisible();
+  const quote = page.getByTestId("check-quote").first();
+  await quote.locator("summary").click();
+  await expect(quote).toContainText(SAMPLE_QUOTE);
 });

@@ -1,14 +1,9 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { generateObject } from "ai";
 import { z } from "zod";
-import {
-  EXTRACT_SYSTEM,
-  llmExtractionSchema,
-  normalizePolicies,
-} from "@/lib/insure/extract-ai";
+import { runChecker } from "@/lib/insure/checker-graph";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+// The grounding loop can run several model passes, so allow more headroom.
+export const maxDuration = 60;
 
 const RequestSchema = z.object({
   // Document text extracted in the browser. Capped to keep cost and latency
@@ -31,22 +26,17 @@ export async function POST(req: Request) {
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json(
-      { error: "AI extraction is not configured on this deployment." },
+      { error: "The policy checker is not configured on this deployment." },
       { status: 503 },
     );
   }
 
   try {
-    const { object } = await generateObject({
-      model: anthropic(process.env.EXTRACT_MODEL || "claude-haiku-4-5"),
-      schema: llmExtractionSchema,
-      system: EXTRACT_SYSTEM,
-      prompt: parsed.data.text,
-    });
-    return Response.json({ policies: normalizePolicies(object.policies) });
+    const result = await runChecker(parsed.data.text);
+    return Response.json(result);
   } catch {
     return Response.json(
-      { error: "Could not extract from this document. Add it by hand instead." },
+      { error: "Could not read this document. Try a different PDF." },
       { status: 502 },
     );
   }

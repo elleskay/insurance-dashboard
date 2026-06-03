@@ -1,5 +1,5 @@
-import { Dashboard } from "@/components/Dashboard";
+import { PolicyChecker } from "@/components/PolicyChecker";
 
 export default function HomePage() {
-  return <Dashboard />;
+  return <PolicyChecker />;
 }

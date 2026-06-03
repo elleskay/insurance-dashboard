@@ -1,199 +1,134 @@
 app: insure
 version: 1
 
-# Insurance coverage overview dashboard for Singapore.
-# Upload personal insurance policy PDFs (parsed entirely in the browser), review
-# the extracted figures, and see coverage by category with an adequacy view
-# against the LIA / MoneySense rules of thumb (death/TPD ~9x annual income,
-# critical illness ~4x, protection premiums ~15% of take-home pay).
+# CoverLens SG: a Singapore insurance policy checker.
+# Upload a personal insurance policy PDF (read entirely in the browser), and the
+# app returns two things per policy: a plain-language summary of what you are
+# getting, and a curated checklist of the fine print to watch for (waiting and
+# survival periods, pre-existing exclusions, co-payment, exclusions, claim
+# limits, premium guarantee, free-look period).
 #
-# Privacy + safety stance: documents never leave the device (client-side only,
-# no server upload, no database). Extraction is best-effort and user-verified.
-# Estimates only, dated, not financial advice; benchmarks are cited.
+# Safety stance: every fine-print finding shown is grounded in a verbatim quote
+# from the uploaded document. A LangGraph self-correction loop re-drafts, then
+# demotes to "not stated", anything it cannot quote from the source, so the app
+# never invents an exclusion or limit. Document text is sent to an AI service to
+# read it (disclosed); nothing is stored, there is no database.
+# Estimates only, dated, not financial advice.
 
 requirements:
   # ---------------------------------------------------------------------------
-  # DATA: extractor + dashboard math (Vitest)
+  # GROUNDING: the deterministic core of the checker (Vitest)
   # ---------------------------------------------------------------------------
-  - id: INSURE-DATA-001
-    title: AI extraction output is normalised into valid policy fields
+  - id: INSURE-CHECK-001
+    title: A fine-print finding is grounded only if its quote appears in the document
     category: data
     severity: critical
-    given: Raw policy objects returned by the AI extractor (a known category, a sum assured as a string, a monthly premium amount)
-    when: normalizePolicies is called on them
-    then: It maps the category to a known category, coerces the sum assured to a number, and annualises the monthly premium
-    tags: [extractor, normalize]
+    given: Draft findings where one cites a quote that is not present in the policy document text and one cites a quote that is
+    when: The grounding check runs against the source text
+    then: The finding whose quote is absent from the source is flagged as ungrounded while the finding whose quote is present passes
+    tags: [checker, grounding, safety]
 
-  - id: INSURE-DATA-002
-    title: Normalisation drops unrecognised or invalid values rather than inventing them
-    category: data
-    severity: high
-    given: Raw AI output with an unknown category and a zero or negative amount
-    when: normalizePolicies is called
-    then: It returns an undefined category and no numeric amount rather than fabricated values
-    tags: [extractor, normalize, safety]
-
-  - id: INSURE-DATA-003
-    title: Coverage totals are summed per category
-    category: data
-    severity: high
-    given: Several policies across different categories
-    when: sumByCategory is computed
-    then: Each category total equals the sum of its policies' sum assured
-    tags: [compute]
-
-  - id: INSURE-DATA-004
-    title: Adequacy gap is target minus covered, never negative, with a status
+  - id: INSURE-CHECK-002
+    title: The checker revises ungrounded drafts then demotes anything it cannot quote
     category: data
     severity: critical
-    given: An annual income, a coverage amount and a benchmark multiple (9x for death/TPD, 4x for critical illness)
-    when: adequacy is computed
-    then: target is income times the multiple, gap is max(0, target minus covered), and status reflects whether the need is met, partially met, or low
-    tags: [compute, adequacy]
+    given: A draft with a finding whose quote cannot be found in the document
+    when: The graph decides whether to revise and then summarises the result
+    then: It routes back to a revision while ungrounded findings remain and attempts are under the cap, and on finalising it demotes the unquotable finding to "not stated" and marks the result as needing review rather than showing the invented finding
+    tags: [checker, self-correction, loop, safety]
 
-  - id: INSURE-DATA-005
-    title: Premium share of income is computed and flagged against the guideline
+  - id: INSURE-CHECK-003
+    title: Every checked policy reports the full curated watch-out checklist
     category: data
-    severity: medium
-    given: A total annual premium and an annual income
-    when: premiumShareOfIncome is computed
-    then: It returns the percentage of income and flags when it exceeds the ~15% protection guideline
-    tags: [compute, premium]
+    severity: high
+    given: An AI draft that only returned findings for some of the curated watch-out items
+    when: The result is summarised
+    then: The policy's checklist contains every curated item in a stable order, each marked either found (with detail) or not stated, so no item silently disappears
+    tags: [checker, checklist, completeness]
 
   # ---------------------------------------------------------------------------
-  # UPLOAD + REVIEW (Playwright)
+  # UPLOAD (Playwright)
   # ---------------------------------------------------------------------------
   - id: INSURE-UPLOAD-001
-    title: The page offers PDF upload with a note on how documents are handled
+    title: The page offers PDF upload with a note on how the document is handled
     category: ui
     severity: high
-    given: A visitor on the dashboard
+    given: A visitor on the home page
     when: They look at the upload area
     then: A file input that accepts one or more PDFs is shown, alongside a clear note explaining how the document is handled
     tags: [upload, privacy]
 
   - id: INSURE-UPLOAD-002
-    title: Uploading a policy PDF builds the summary with no manual data entry
+    title: Uploading a policy PDF produces a summary and a fine-print checklist with no manual entry
     category: functional
     severity: critical
-    given: A visitor with a policy PDF and an empty dashboard
+    given: A visitor with a policy PDF and an empty page
     when: They upload the PDF
-    then: The app reads the document text in the browser, sends it to the AI extraction service, and adds the returned policy (category, sum assured, premium) to the dashboard automatically, without the visitor typing any policy values
-    tags: [upload, extract, ai, journey]
+    then: The app reads the document text in the browser, sends it to the AI checker service, and shows the returned policy with a plain-language summary and the fine-print checklist, without the visitor typing any policy values
+    tags: [upload, checker, ai, journey]
+
+  # ---------------------------------------------------------------------------
+  # WHAT YOU ARE GETTING + WHAT TO WATCH FOR (Playwright)
+  # ---------------------------------------------------------------------------
+  - id: INSURE-SUMMARY-001
+    title: Each checked policy shows a plain-language summary of what it covers
+    category: ui
+    severity: critical
+    given: A policy that has been checked
+    when: Its card renders
+    then: A plain-language summary of what the policy gives you is shown, along with the insurer and plan name
+    tags: [summary]
+    depends_on: [INSURE-UPLOAD-002]
+
+  - id: INSURE-FINEPRINT-001
+    title: Each checked policy shows the curated watch-out checklist with a status per item
+    category: functional
+    severity: critical
+    given: A policy that has been checked
+    when: Its card renders
+    then: The curated watch-out items (such as waiting period, pre-existing conditions, exclusions, co-payment, claim limits, free-look) are each shown marked as found or not stated
+    tags: [fineprint, checklist]
+    depends_on: [INSURE-UPLOAD-002]
+
+  - id: INSURE-FINEPRINT-002
+    title: A found watch-out shows the supporting quote from the user's document
+    category: functional
+    severity: high
+    given: A checked policy with a watch-out item that was found in the document
+    when: The visitor views that found item
+    then: The supporting verbatim quote from their own document is shown for it, so the finding can be traced back to the source rather than taken on trust
+    tags: [fineprint, grounding, trust]
+    depends_on: [INSURE-UPLOAD-002]
 
   - id: INSURE-REVIEW-001
-    title: An extracted policy can be corrected inline without re-entering it
-    category: functional
-    severity: critical
-    given: A policy that was added from an uploaded document
-    when: The visitor edits one of its fields (for example the sum assured) in the policy list
-    then: Only that field changes and the dashboard totals update, with the rest of the policy preserved
-    tags: [review, policies]
-    depends_on: [INSURE-UPLOAD-002]
-
-  - id: INSURE-REVIEW-002
-    title: A policy can be removed
+    title: A checked policy can be removed
     category: functional
     severity: medium
-    given: A policy already on the dashboard
+    given: A policy already shown on the page
     when: The visitor removes it
-    then: It disappears from the policy list and the totals update
-    tags: [review, policies]
+    then: It disappears from the list
+    tags: [review]
     depends_on: [INSURE-UPLOAD-002]
 
-  # ---------------------------------------------------------------------------
-  # DASHBOARD (Playwright)
-  # ---------------------------------------------------------------------------
-  - id: INSURE-DASH-001
-    title: Coverage by category is shown with totals
-    category: ui
-    severity: critical
-    given: At least one policy added
-    when: The dashboard renders
-    then: Coverage-by-category cards show the categories (hospitalisation, life, critical illness, disability income, personal accident) with their summed cover
-    tags: [dashboard]
-    depends_on: [INSURE-UPLOAD-002]
-
-  - id: INSURE-DASH-002
-    title: Adequacy shows death/TPD vs 9x and critical illness vs 4x of income
-    category: functional
-    severity: critical
-    given: Life and critical-illness cover on the dashboard and an optional annual income provided
-    when: The adequacy section renders
-    then: It shows the target, the covered amount, and the gap (or met status) for death/TPD against 9x income and critical illness against 4x income
-    tags: [dashboard, adequacy]
-    depends_on: [INSURE-UPLOAD-002]
-
-  - id: INSURE-DASH-003
-    title: Total premium and its share of income are shown against the guideline
-    category: ui
-    severity: high
-    given: Policies with premiums and an optional annual income
-    when: The premium panel renders
-    then: It shows the total annual premium and its percentage of income, referencing the ~15% guideline
-    tags: [dashboard, premium]
-    depends_on: [INSURE-UPLOAD-002]
-
-  - id: INSURE-DASH-004
-    title: An empty state guides the user before any policy exists
+  - id: INSURE-EMPTY-001
+    title: An empty state guides the user before any policy is checked
     category: ui
     severity: medium
-    given: A first visit with no policies
-    when: The dashboard renders
-    then: A helpful empty state invites the visitor to upload a policy document instead of showing blank or zeroed charts
-    tags: [dashboard, empty-state]
+    given: A first visit with nothing uploaded
+    when: The page renders
+    then: A helpful empty state invites the visitor to upload a policy document instead of showing a blank page
+    tags: [empty-state]
 
   # ---------------------------------------------------------------------------
-  # ADVISOR: grounded, self-correcting LangGraph recommendations
-  # (Vitest for the grounding logic, Playwright for the panel + journey)
-  # ---------------------------------------------------------------------------
-  - id: INSURE-ADVISOR-001
-    title: Every recommendation is grounded in the computed coverage gaps
-    category: data
-    severity: critical
-    given: Recommendations where one cites a dollar gap that does not match the figure computed from the policies and income
-    when: The grounding check runs against the computed facts
-    then: The recommendation citing the wrong figure is flagged as ungrounded while correctly cited ones pass
-    tags: [advisor, grounding, safety]
-
-  - id: INSURE-ADVISOR-002
-    title: The advisor revises ungrounded drafts then flags anything it cannot verify
-    category: data
-    severity: high
-    given: A draft that still has grounding issues
-    when: The graph decides whether to revise and then summarises the result
-    then: It routes back to a revision while issues remain and attempts are under the cap, and on finalising it drops unverifiable recommendations and marks the result as needing review
-    tags: [advisor, self-correction, loop]
-
-  - id: INSURE-ADVISOR-003
-    title: A user can request advice and see recommendations tied to their actual gaps
-    category: functional
-    severity: critical
-    given: A dashboard with policies and an annual income entered
-    when: The user requests personalised advice
-    then: The app calls the advisor service and shows recommendations that reference the user's real coverage gaps, in one flow from upload to advice
-    tags: [advisor, journey, e2e]
-    depends_on: [INSURE-UPLOAD-002, INSURE-DASH-002]
-
-  - id: INSURE-ADVISOR-004
-    title: Advice that could not be verified is flagged for review, not shown as certain
-    category: ui
-    severity: high
-    given: An advice response where some suggestions were set aside as unverifiable
-    when: The advice panel renders
-    then: A visible review note tells the user some suggestions need checking, rather than presenting every suggestion as confirmed
-    tags: [advisor, trust, review]
-
-  # ---------------------------------------------------------------------------
-  # TRUST + SAFETY (Playwright)
+  # TRUST + SECURITY (Playwright)
   # ---------------------------------------------------------------------------
   - id: INSURE-TRUST-001
-    title: A not-advice disclaimer with cited benchmarks and a date is present
+    title: A not-advice disclaimer with a reviewed date is present
     category: ui
     severity: high
     given: Any page of the app
     when: It renders
-    then: A visible disclaimer states this is an estimate and not financial advice, cites the LIA / MoneySense benchmarks, and shows a last-reviewed date
+    then: A visible disclaimer states this is a plain-language reading of the document, not financial advice, tells the user to confirm against their actual policy wording, and shows a last-reviewed date
     tags: [trust, disclaimer]
 
   - id: INSURE-SEC-001
@@ -211,39 +146,40 @@ requirements:
     severity: critical
     given: A visitor looking at the upload area before uploading
     when: They read the privacy note
-    then: It clearly states that the document text is sent to an AI service to extract the figures (it does not claim the document never leaves the browser)
+    then: It clearly states that the document text is sent to an AI service to read the policy (it does not claim the document never leaves the browser)
     tags: [privacy, ai, transparency]
 
   # ---------------------------------------------------------------------------
   # ACCESSIBILITY (Playwright + axe)
   # ---------------------------------------------------------------------------
   - id: INSURE-A11Y-001
-    title: The dashboard has no critical accessibility violations
+    title: The checked-policy view has no critical accessibility violations
     category: a11y
     severity: high
-    given: The dashboard with a policy added
+    given: The page with a policy checked
     when: An automated accessibility scan runs
     then: No critical or serious violations are reported
     tags: [a11y, axe]
 
   - id: INSURE-A11Y-002
-    title: Adding and editing a policy by hand is operable by keyboard
+    title: The supporting-quote disclosure is operable by keyboard
     category: a11y
     severity: medium
-    given: A keyboard-only visitor whose document did not parse
-    when: They use the manual fallback to add a policy and edit its fields
-    then: They can add and edit a policy without a pointer
+    given: A keyboard-only visitor on a checked policy with a found watch-out
+    when: They open the supporting-quote disclosure for that item
+    then: They can reveal the quote without a pointer
     tags: [a11y, keyboard]
+    depends_on: [INSURE-FINEPRINT-002]
 
   # ---------------------------------------------------------------------------
   # JOURNEY (Playwright)
   # ---------------------------------------------------------------------------
   - id: INSURE-JOURNEY-001
-    title: Upload a policy, optionally add income, and see coverage and an adequacy gap
+    title: Upload a policy and see its summary plus a grounded fine-print checklist
     category: functional
     severity: critical
     given: A new visitor
-    when: They upload a life policy document, add a critical-illness policy, and enter their annual income
-    then: The dashboard shows coverage by category, the total premium, and an adequacy comparison with a gap or met status, all in one unbroken flow
+    when: They upload a policy document
+    then: The page shows the plain-language summary, the watch-out checklist with a found item, and that found item's supporting quote from the document, all in one unbroken flow
     tags: [journey, e2e]
-    depends_on: [INSURE-UPLOAD-002, INSURE-DASH-001, INSURE-DASH-002]
+    depends_on: [INSURE-UPLOAD-002, INSURE-SUMMARY-001, INSURE-FINEPRINT-002]
