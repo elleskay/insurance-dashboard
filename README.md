@@ -1,10 +1,14 @@
-# CoverLens SG
+<div align="center">
 
-![CoverLens SG](docs/screenshots/hero.png)
+<img src="docs/screenshots/hero.png" alt="CoverLens SG: know what your policy actually covers" width="100%">
 
-Upload a Singapore insurance policy PDF and CoverLens reads it for you: a plain-language summary of what you are getting, an itemised breakdown of what you are covered for, and a curated checklist of the fine print to watch for. Every watch-out it shows is backed by a verbatim quote from your own document, so nothing is taken on trust.
+[![CI](https://github.com/elleskay/insurance-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/elleskay/insurance-dashboard/actions/workflows/ci.yml) &nbsp;![spec gate](https://img.shields.io/badge/spec--gate-28%2F28%20covered-6D28D9) &nbsp;![grounded](https://img.shields.io/badge/AI-grounded%2C%20quote--backed-2563EB) &nbsp;![stack](https://img.shields.io/badge/stack-Next.js%20%2B%20LangGraph%20%2B%20AWS-0F172A) &nbsp;[![license](https://img.shields.io/badge/license-MIT-64748B)](LICENSE)
 
-**Live:** https://d33z7oya883ugt.cloudfront.net (no document handy? click "See a sample report")
+**Upload a Singapore insurance policy PDF and CoverLens reads it for you:** a plain-language summary, an itemised breakdown of what you are covered for, and a curated checklist of the fine print to watch for. Every finding is backed by a verbatim quote from your own document, so nothing is taken on trust, via a LangGraph self-correction loop that never shows what it cannot quote.
+
+**[Live demo](https://d33z7oya883ugt.cloudfront.net):** no document handy? Click "See a sample report".
+
+</div>
 
 > A plain-language reading of your policy document, not financial advice. An AI reads the text and may miss or misread terms. Always confirm against your actual policy wording or a licensed financial adviser.
 
