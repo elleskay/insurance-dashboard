@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CoverLens SG: insurance policy checker",
+  title: "CoverLens: insurance policy checker",
   description:
     "Upload a Singapore insurance policy PDF and get a plain-language summary of what you are covered for, plus the fine print to watch for, each backed by a quote from your own document.",
 };
@@ -51,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <path d="M9 12l2 2 4-4" />
               </svg>
             </span>
-            <span className="text-lg font-bold text-heading">CoverLens SG</span>
+            <span className="text-lg font-bold text-heading">CoverLens</span>
           </div>
         </header>
 

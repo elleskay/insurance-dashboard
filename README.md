@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/screenshots/hero.png" alt="CoverLens SG: know what your policy actually covers" width="100%">
+<img src="docs/screenshots/hero.png" alt="CoverLens: know what your policy actually covers" width="100%">
 
 [![CI](https://github.com/elleskay/insurance-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/elleskay/insurance-dashboard/actions/workflows/ci.yml) &nbsp;![spec gate](https://img.shields.io/badge/spec--gate-28%2F28%20covered-6D28D9) &nbsp;![grounded](https://img.shields.io/badge/AI-grounded%2C%20quote--backed-2563EB) &nbsp;![stack](https://img.shields.io/badge/stack-Next.js%20%2B%20LangGraph%20%2B%20AWS-0F172A) &nbsp;[![license](https://img.shields.io/badge/license-MIT-64748B)](LICENSE)
 

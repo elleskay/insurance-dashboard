@@ -1,7 +1,7 @@
 app: insure
 version: 1
 
-# CoverLens SG: a Singapore insurance policy checker.
+# CoverLens: a Singapore insurance policy checker.
 # Upload a personal insurance policy PDF (read entirely in the browser), and the
 # app returns two things per policy: a plain-language summary of what you are
 # getting, and a curated checklist of the fine print to watch for (waiting and
