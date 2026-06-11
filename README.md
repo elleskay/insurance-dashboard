@@ -6,7 +6,7 @@
 
 **Upload a Singapore insurance policy PDF and CoverLens reads it for you:** a plain-language summary, an itemised breakdown of what you are covered for, and a curated checklist of the fine print to watch for. Every finding is backed by a verbatim quote from your own document, so nothing is taken on trust, via a LangGraph self-correction loop that never shows what it cannot quote.
 
-**[Live demo](https://d33z7oya883ugt.cloudfront.net):** no document handy? Click "See a sample report".
+**[Live demo](https://coverlens.soonkeong.dev):** no document handy? Click "See a sample report".
 
 </div>
 
