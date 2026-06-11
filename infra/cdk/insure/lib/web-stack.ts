@@ -26,12 +26,14 @@ export class WebStack extends cdk.Stack {
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
         CHECKER_MODEL: process.env.CHECKER_MODEL ?? "",
       },
-      // Optional: provide a custom domain so AUTH_URL is known up front.
-      // customDomain: {
-      //   domainName: "armoury.example.com",
-      //   certificateArn: "arn:aws:acm:us-east-1:...",
-      //   hostedZoneId: "Z123ABCDE",
-      // },
+      // Custom domain on the CloudFront distribution. DNS lives on Vercel
+      // (soonkeong.dev): a CNAME points coverlens.soonkeong.dev at the
+      // distribution.
+      customDomain: {
+        domainName: "coverlens.soonkeong.dev",
+        certificateArn:
+          "arn:aws:acm:us-east-1:281639842383:certificate/35d18d9e-1dc9-4626-8293-8a70fb580e3b",
+      },
     });
   }
 }
