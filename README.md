@@ -51,17 +51,16 @@ There is no server database. This is the client-side domain model, built by the 
 
 ### API or System Interface
 
-One model-backed endpoint, plus an in-browser parse step that keeps the raw file off the network as a binary. The browser reads the PDF to text with pdfjs-dist and posts only the extracted text.
+One model-backed endpoint, plus an in-browser parse step that keeps the raw file off the network as a binary. The browser reads the PDF to text with pdfjs-dist and posts only the extracted text. Check endpoint. It takes that extracted policy text, runs the grounded LangGraph check that maps the document into entities, and returns a quote-backed breakdown (the CheckResult), where every coverage figure, definition, and checklist line is pinned to a verbatim quote from the source. POST because each call creates a new check result rather than reading something cacheable.
 
-`POST /api/check`
-
-Request:
-
-```json
-{ "text": "the full text extracted from the PDF in the browser" }
+```
+POST /api/check -> CheckResult
+Body: {
+  text
+}
 ```
 
-Response:
+The extracted `text` is the only thing the client sends, never a verdict or a policy field. The response is a CheckResult, `{ policies, needsReview }`, where each policy carries its summary, the coverage and definition quotes, and the per-clause checklist:
 
 ```json
 {
@@ -73,11 +72,12 @@ Response:
       "summary": "Plain-language summary of the policy.",
       "coverage":    [{ "benefit": "Death benefit", "limit": "SGD 500,000", "quote": "verbatim from the document" }],
       "definitions": [{ "term": "Total and Permanent Disability", "definition": "...", "quote": "verbatim from the document" }],
-      "checklist":   [{ "key": "survivalPeriod", "status": "found", "severity": "caution", "quote": "..." },
-                      { "key": "preExisting", "status": "not-stated" }],
+      "checklist":   [{ "key": "survival-period", "status": "found", "severity": "caution", "quote": "..." },
+                      { "key": "pre-existing", "status": "not-stated" }],
       "payout": { "deductible": 3500, "coPayPercent": 10, "coPayCap": 3000 }
     }
-  ]
+  ],
+  "needsReview": false
 }
 ```
 
@@ -93,33 +93,66 @@ We build the design one functional requirement at a time.
 
 The browser reads the dropped PDF to text with pdfjs-dist, so the raw file never crosses the network. It posts only the extracted text to the check endpoint on a Lambda, which passes an origin allow-list and a rate limit before any model work begins.
 
+We start with the read path: parse in the browser, post only the text, pass the guards, reach the checker.
+
 ```mermaid
-flowchart TD
-    Upload([User uploads policy PDF]) --> Parse[Browser reads text with pdfjs-dist]
-    Parse --> Post[POST /api/check]
-    Post --> Guard[Origin allow-list and rate limit]
-    Guard --> Graph[LangGraph checker]
-    Graph --> Render[Render the breakdown in the browser]
+flowchart LR
+  Browser["Browser<br/>- reads PDF to text (pdfjs-dist)<br/>- posts only the text<br/>- renders the breakdown"]
+  API["POST /api/check<br/>- receives extracted text<br/>- returns CheckResult"]
+  Guard["Origin allow-list + rate limit<br/>- reject cross-site callers<br/>- bound calls per minute"]
+  Checker["LangGraph checker<br/>- turns text into entities"]
+  Browser -->|"POST /api/check"| API
+  API -->|guard| Guard
+  Guard -->|pass| Checker
+  Checker -->|"breakdown"| Browser
 ```
 
 ### 2) The system returns a structured breakdown of the policy
 
 Inside the route, a LangGraph checker turns the policy text into the core entities. For each policy it produces a summary, an itemised coverage list with limits, the payout-deciding definitions, the fine-print checklist with each curated key marked found or not stated, and an optional worked payout example. The drafting is a model node, the Vercel AI SDK generateObject call with a Zod schema, so the output shape is enforced before it reaches the browser.
 
+We open the checker up: a drafter node produces the entities under a schema, so the shape is enforced before anything renders.
+
+```mermaid
+flowchart LR
+  Browser["Browser<br/>- reads PDF to text (pdfjs-dist)<br/>- posts only the text<br/>- renders the breakdown"]
+  API["POST /api/check<br/>- receives extracted text<br/>- returns CheckResult"]
+  Guard["Origin allow-list + rate limit<br/>- reject cross-site callers<br/>- bound calls per minute"]
+  Checker["LangGraph checker<br/>- turns text into entities"]
+  Draft["Drafter<br/>- generateObject with a Zod schema<br/>- enforces output shape"]
+  Entities["Breakdown entities<br/>- summary, coverage, definitions<br/>- checklist, payout"]
+  Browser -->|"POST /api/check"| API
+  API -->|guard| Guard
+  Guard -->|pass| Checker
+  Checker -->|run| Draft
+  Draft -->|"schema-checked entities"| Entities
+  Entities -->|"breakdown"| Browser
+```
+
 ### 3) Every finding is traceable to a verbatim quote
 
 Every finding the user sees carries the exact wording it came from. The drafter cites a verbatim quote for each coverage item, definition, and checklist entry, and the interface exposes a show-the-wording disclosure on each one. Whether that cited quote is trustworthy is the hard part, handled in the first deep dive.
 
-### Physical deployment
-
-There is no database. The only persistent store is the user's browser.
+We add the grounding step that checks each finding against the source text, so nothing reaches the page without its quote.
 
 ```mermaid
 flowchart LR
-    User([User browser]) -->|HTTPS| CF[CloudFront CDN]
-    CF -->|static assets| S3[(S3 bucket)]
-    CF -->|dynamic requests| Lambda[Lambda running Next.js via OpenNext]
-    Lambda --> Anthropic[Anthropic API]
+  Browser["Browser<br/>- reads PDF to text (pdfjs-dist)<br/>- posts only the text<br/>- renders each finding with its quote"]
+  API["POST /api/check<br/>- receives extracted text<br/>- returns CheckResult"]
+  Guard["Origin allow-list + rate limit<br/>- reject cross-site callers<br/>- bound calls per minute"]
+  Checker["LangGraph checker<br/>- turns text into entities"]
+  Draft["Drafter<br/>- generateObject with a Zod schema<br/>- cites a quote per finding"]
+  Ground["Grounding step<br/>- verify each finding against source text<br/>- drop anything unquotable"]
+  Entities["Breakdown entities<br/>- summary, coverage, definitions<br/>- checklist, payout"]
+  Anthropic{"Anthropic"}
+  Browser -->|"POST /api/check"| API
+  API -->|guard| Guard
+  Guard -->|pass| Checker
+  Checker -->|run| Draft
+  Draft -->|generate| Anthropic
+  Draft -->|"drafted findings"| Ground
+  Ground -->|"quote-backed entities"| Entities
+  Entities -->|"breakdown"| Browser
 ```
 
 ---
@@ -148,10 +181,13 @@ Require a verbatim quote on each finding, and ask the model in the same prompt t
 Separate drafting from verifying. A model node drafts findings with cited quotes, then a deterministic, model-free node checks that each quote appears verbatim in the document text. Anything that fails is re-drafted up to a cap, then demoted to not stated rather than shown. The guarantee comes from code, not from trusting the model, which is also why it is unit-testable without a model. This is what CoverLens runs.
 
 ```mermaid
-flowchart TD
-    Draft[Draft summary and findings, each citing a quote] --> Verify{Quote appears verbatim in the source text?}
-    Verify -->|no, still under the draft cap| Draft
-    Verify -->|yes, or cap reached| Final[Finalize, demote any unquotable finding to not stated]
+flowchart LR
+  Draft["Drafter<br/>- draft summary and findings<br/>- cite a quote per finding"]
+  Verify["Grounding step<br/>- check quote appears verbatim in source text<br/>- re-draft up to a cap"]
+  Final["Finalize<br/>- demote any unquotable finding to not stated<br/>- return quote-backed result"]
+  Draft -->|"drafted findings"| Verify
+  Verify -->|"no, still under the draft cap"| Draft
+  Verify -->|"yes, or cap reached"| Final
 ```
 </details>
 
@@ -244,6 +280,38 @@ The grounding logic is deterministic and model-free, so it is unit-tested direct
 </details>
 
 ---
+
+## The complete design
+
+Pulling the high-level design and the deep dives together, here is the whole system in one view. It deploys behind CloudFront with static assets on S3 and Next.js on a Lambda via OpenNext. There is no database, the only persistent store is the user's browser.
+
+```mermaid
+flowchart LR
+  Browser["Browser<br/>- reads PDF to text (pdfjs-dist)<br/>- posts only the text"]
+  CloudFront["CloudFront<br/>- edge entry point<br/>- routes static vs dynamic"]
+  S3["S3 assets<br/>- static files and pdf.js worker"]
+  Lambda["Lambda (Next.js via OpenNext)<br/>- runs the app and the API route"]
+  API["POST /api/check<br/>- receives extracted text<br/>- returns CheckResult"]
+  Guard["Origin allow-list + rate limit<br/>- reject cross-site callers<br/>- bound calls per minute"]
+  Checker["LangGraph checker<br/>- turns text into entities"]
+  Draft["Drafter<br/>- generateObject with Zod<br/>- cites a quote per finding"]
+  Ground["Grounding step<br/>- verify against source text<br/>- drop anything unquotable"]
+  Entities["Breakdown entities<br/>- summary, coverage, definitions<br/>- checklist, payout"]
+  View["Breakdown<br/>- each finding shows its quote"]
+  Anthropic{"Anthropic"}
+  Browser -->|"requests"| CloudFront
+  CloudFront -->|"static"| S3
+  CloudFront -->|"dynamic"| Lambda
+  Browser -->|"POST /api/check"| API
+  Lambda -->|hosts| API
+  API -->|guard| Guard
+  Guard -->|pass| Checker
+  Checker -->|run| Draft
+  Draft -->|generate| Anthropic
+  Draft -->|"drafted findings"| Ground
+  Ground -->|"quote-backed entities"| Entities
+  Entities -->|"breakdown"| View
+```
 
 ## Tech stack
 
