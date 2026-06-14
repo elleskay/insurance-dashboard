@@ -1,272 +1,263 @@
-<div align="center">
+# CoverLens System Design
 
-<img src="docs/screenshots/hero.png" alt="CoverLens: know what your policy actually covers" width="100%">
+> A system design breakdown of CoverLens, an AI checker that reads a Singapore insurance policy PDF and surfaces, in plain language, what it covers and the fine print that decides a claim. Every finding is backed by a verbatim quote from the document.
+>
+> **Live demo** at https://coverlens.soonkeong.dev
 
-[![CI](https://github.com/elleskay/insurance-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/elleskay/insurance-dashboard/actions/workflows/ci.yml) &nbsp;![spec gate](https://img.shields.io/badge/spec--gate-28%2F28%20covered-6D28D9) &nbsp;![grounded](https://img.shields.io/badge/AI-grounded%2C%20quote--backed-2563EB) &nbsp;![stack](https://img.shields.io/badge/stack-Next.js%20%2B%20LangGraph%20%2B%20AWS-0F172A) &nbsp;[![license](https://img.shields.io/badge/license-MIT-64748B)](LICENSE)
+---
 
-**Upload a Singapore insurance policy PDF and CoverLens reads it for you:** a plain-language summary, an itemised breakdown of what you are covered for, and a curated checklist of the fine print to watch for. Every finding is backed by a verbatim quote from your own document, so nothing is taken on trust, via a LangGraph self-correction loop that never shows what it cannot quote.
+## Understanding the Problem
 
-**[Live demo](https://coverlens.soonkeong.dev):** no document handy? Click "See a sample report".
+CoverLens takes an insurance policy PDF and returns a plain-language reading of it, made up of an itemised coverage breakdown, the payout-deciding definitions, a curated fine-print checklist, and a worked will-this-pay-out example.
 
-</div>
+The defining constraint is trust. A checker that confidently invents an exclusion or a limit is worse than useless, because a user would act on a term that is not in their policy. So the central design problem is not "summarise a PDF with an LLM," it is "summarise a PDF such that the system can never show a claim it cannot prove is in the document." Everything else follows from that.
 
-> A plain-language reading of your policy document, not financial advice. An AI reads the text and may miss or misread terms. Always confirm against your actual policy wording or a licensed financial adviser.
+### Functional Requirements
 
-## Why it exists
+- Users should be able to upload one or more policy PDFs and get each read into a plain-language summary.
+- Users should be able to see, per policy, an itemised coverage breakdown, every benefit with its limit.
+- Users should be able to see the payout-deciding definitions, such as the disability basis, critical-illness severity, survival period, and covered conditions.
+- Users should be able to see a curated fine-print checklist, each item marked found or not stated, in a fixed order so nothing silently disappears.
+- Users should be able to see a worked payout example when the document states a deductible and co-payment.
+- Every finding should be traceable to a verbatim quote from the user's document.
 
-Singapore policy documents are long, and the parts that decide whether a claim pays are buried in the fine print: a survival period, a co-payment, a pre-existing-conditions carve-out. CoverLens reads the wording and surfaces those terms in plain language. The safety stance is the whole point: a checker that confidently invents an exclusion is worse than useless, so this one refuses to show any finding it cannot quote, word for word, from your document. A LangGraph self-correction loop is what enforces that.
+Out of scope: user accounts, server-side storage of documents or history, and financial advice. This is a plain-language reading only.
 
-## What it does
+### Non-Functional Requirements
 
-- **Upload, do not type.** Drop one or more policy PDFs. The browser reads the text and sends it to the checker. One document can contain several policies.
-- **Itemised coverage breakdown.** For each policy, a "what you are covered for" list: every benefit with its limit (room and board as charged, a $500,000 death benefit, outpatient cancer up to a multiple of the MediShield Life limit), each traceable to the exact wording in your document, not a vague summary.
-- **Key definitions.** How your policy defines the terms that actually decide a payout: total and permanent disability (any-occupation vs activities-of-daily-living vs presumptive), critical illness severity and the survival period, the covered-conditions list, each quoted from your document. This is where claims most often fail.
-- **A curated fine-print checklist.** The watch-outs that matter for Singapore policies: waiting period, survival period, pre-existing conditions, key exclusions, deductible, co-payment and pro-ration, claim and sub-limits, premium guarantee, and free-look period. Each item is marked found or not stated, so nothing silently disappears.
-- **A worked "will this pay out?" example.** The most common real-world reason a claim does not pay is the bill being at or below the deductible. When the document states a deductible and co-payment, the checker shows a worked figure, using only numbers it can find in your document.
-- **Grounded, never invented.** A LangGraph agent drafts the findings, then checks that every one is backed by a verbatim quote from your document. Anything it cannot quote is re-drafted, then demoted to "not stated" rather than shown.
-- **Trace any finding to the source.** Each found watch-out has a "show the wording from your document" disclosure with the exact quote it was drawn from.
+- The system should be grounded, with 100 percent of shown findings backed by a verbatim quote and anything unquotable dropped. This is safety-critical and drives the core design.
+- The system should protect privacy, storing documents nowhere, with the only persistence being the user's own browser.
+- The system should return a check within a few seconds for a typical policy.
+- The system should keep a public, unauthenticated, paid endpoint within a bounded number of model calls per minute per caller.
+- The system should be deterministically testable despite a non-deterministic model in the loop.
 
-## Screenshots
+---
 
-**Overview.** Upload a policy and it is read into a plain-language card, with a running count of the watch-outs found. No document handy? "See a sample report" loads a labelled sample with no upload.
+## The Set Up
 
-![Overview](docs/screenshots/overview.png)
+### Planning the Approach
 
-**What you are covered for, then what to watch for.** Each policy itemises its benefits with limits and a traceable quote, then leads with its single most important catch and the curated checklist (found items carry a severity and the verbatim quote, sorted most serious first; the rest marked not stated).
+CoverLens is heavy on reading text and light on writing data. The output is derived from the uploaded document and consumed immediately, so there is no durable record worth keeping. That shapes three choices. Push work to the browser where possible, which means parsing and all state live client-side. Keep one stateless server route for the single model-backed step. And treat grounding as the property the whole system exists to protect. The priority order, grounding first, then privacy, then cost, drives every later decision.
 
-![Coverage breakdown and fine-print checklist](docs/screenshots/fineprint.png)
+### Defining the Core Entities
 
-**Will a claim pay out?** When the document states a deductible and co-payment, the checker shows a worked example, using only figures it can find in your document.
+There is no server database. This is the client-side domain model, built by the checker at request time and held in browser state.
 
-![Deductible payout explainer](docs/screenshots/deductible.png)
+- **PolicyCheck**, one checked policy, holding insurer, name, category, and summary.
+- **CoverageItem**, one benefit, holding the benefit, its limit, a detail, and the quote it was drawn from.
+- **DefinitionItem**, one payout-deciding term, holding the term, its definition, and the quote.
+- **CheckItem**, one curated fine-print key, holding the key, a status of found or not-stated, a detail, a quote, and a severity.
+- **Payout**, an optional worked example, holding the deductible, co-payment percent, and co-payment cap.
 
-## How it works
+### API or System Interface
 
-From a dropped PDF to a grounded breakdown, in one flow.
+One model-backed endpoint, plus an in-browser parse step that keeps the raw file off the network as a binary. The browser reads the PDF to text with pdfjs-dist and posts only the extracted text.
+
+`POST /api/check`
+
+Request:
+
+```json
+{ "text": "the full text extracted from the PDF in the browser" }
+```
+
+Response:
+
+```json
+{
+  "policies": [
+    {
+      "insurer": "Great Eastern",
+      "name": "GREAT TermLife",
+      "category": "life",
+      "summary": "Plain-language summary of the policy.",
+      "coverage":    [{ "benefit": "Death benefit", "limit": "SGD 500,000", "quote": "verbatim from the document" }],
+      "definitions": [{ "term": "Total and Permanent Disability", "definition": "...", "quote": "verbatim from the document" }],
+      "checklist":   [{ "key": "survivalPeriod", "status": "found", "severity": "caution", "quote": "..." },
+                      { "key": "preExisting", "status": "not-stated" }],
+      "payout": { "deductible": 3500, "coPayPercent": 10, "coPayCap": 3000 }
+    }
+  ]
+}
+```
+
+The endpoint fails safe. A missing model key returns 503, and a caller that fails the origin allow-list or the rate limit is rejected before any model call runs.
+
+---
+
+## High-Level Design
+
+We build the design one functional requirement at a time.
+
+### 1) A user can upload a policy and have it read
+
+The browser reads the dropped PDF to text with pdfjs-dist, so the raw file never crosses the network. It posts only the extracted text to the check endpoint on a Lambda, which passes an origin allow-list and a rate limit before any model work begins.
 
 ```mermaid
 flowchart TD
-    Upload([Upload policy PDF]) --> Parse[Read text in the browser with pdfjs-dist]
-    Parse --> Check[POST /api/check]
-    Check --> Graph[LangGraph checker, grounded and self-correcting]
-    Graph --> Coverage[Itemised coverage breakdown]
-    Graph --> Definitions[Key payout-deciding definitions]
-    Graph --> Checklist[Fine-print checklist, each item quoted or not stated]
-    Graph --> Payout[Deductible payout example]
+    Upload([User uploads policy PDF]) --> Parse[Browser reads text with pdfjs-dist]
+    Parse --> Post[POST /api/check]
+    Post --> Guard[Origin allow-list and rate limit]
+    Guard --> Graph[LangGraph checker]
+    Graph --> Render[Render the breakdown in the browser]
 ```
 
-### The check request, step by step
+### 2) The system returns a structured breakdown of the policy
 
-The checker is a LangGraph state graph whose headline is a self-correction loop: it never surfaces a finding it cannot quote from your document. A single model call cannot guarantee that; the loop, the shared state, and the conditional routing are what LangGraph adds.
+Inside the route, a LangGraph checker turns the policy text into the core entities. For each policy it produces a summary, an itemised coverage list with limits, the payout-deciding definitions, the fine-print checklist with each curated key marked found or not stated, and an optional worked payout example. The drafting is a model node, the Vercel AI SDK generateObject call with a Zod schema, so the output shape is enforced before it reaches the browser.
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant Browser
-    participant API as /api/check on Lambda
-    participant Graph as LangGraph checker
-    participant Claude as Anthropic
+### 3) Every finding is traceable to a verbatim quote
 
-    User->>Browser: Upload policy PDF
-    Browser->>Browser: read text with pdfjs-dist
-    Browser->>API: POST document text
-    API->>Graph: invoke
-    loop until grounded or draft cap
-        Graph->>Claude: draft summary and findings with quotes
-        Claude-->>Graph: drafts citing quotes
-        Graph->>Graph: verify each quote appears in the document
-    end
-    Graph->>Graph: finalize, demote unquotable to not stated, build full checklist
-    Graph-->>API: summary and grounded checklist
-    API-->>Browser: checked policy
-    Browser-->>User: render breakdown and fine print
-```
+Every finding the user sees carries the exact wording it came from. The drafter cites a verbatim quote for each coverage item, definition, and checklist entry, and the interface exposes a show-the-wording disclosure on each one. Whether that cited quote is trustworthy is the hard part, handled in the first deep dive.
 
-### Privacy
+### Physical deployment
 
-The document text is sent to an AI service to read it. It is not stored. This is a deliberate tradeoff for quality, and it is disclosed in the app. There is no database; everything else stays in your browser's `localStorage`. Do not upload anything you are not comfortable sharing with an AI service.
-
-## Architecture
-
-### Logical architecture
-
-Responsibilities by layer. The browser owns parsing and state; the server owns the one AI-backed route, inside which the graph separates the model work from the deterministic grounding.
-
-```mermaid
-flowchart TD
-    UI[React UI and client state in localStorage] --> PDF[In-browser PDF parsing with pdfjs-dist]
-    UI --> Route[API route, POST /api/check]
-    Route --> Guard[Origin guard and rate limit]
-    Guard --> Graph[LangGraph grounding graph]
-    Graph --> Draft[Drafter node, Vercel AI SDK generateObject]
-    Graph --> Verify[Verify node, quote grounding, deterministic]
-    Draft --> Anthropic[Anthropic API]
-```
-
-### Physical architecture
-
-What runs in production. There is no database: the only persistent store is the user's browser.
+There is no database. The only persistent store is the user's browser.
 
 ```mermaid
 flowchart LR
     User([User browser]) -->|HTTPS| CF[CloudFront CDN]
     CF -->|static assets| S3[(S3 bucket)]
-    CF -->|dynamic requests| Lambda[Lambda, Next.js via OpenNext]
+    CF -->|dynamic requests| Lambda[Lambda running Next.js via OpenNext]
     Lambda --> Anthropic[Anthropic API]
 ```
 
-### Data model
+---
 
-There is no server database. This is the client-side TypeScript domain model, held in React state and mirrored to `localStorage`. The checker builds and returns these types at request time, so the diagram below is the shape of one checked policy, not a stored schema.
+## Potential Deep Dives
+
+### 1) How do we guarantee a finding is never shown unless it is quoted from the document?
+
+A single model call cannot guarantee this, because models paraphrase and invent.
+
+<details>
+<summary><strong>Bad solution: trust one model call</strong></summary>
+
+Prompt the model for the findings and render whatever comes back. One call, fast and simple. Nothing stops it from inventing an exclusion or a limit that is not in the policy, the exact failure that makes the product worse than useless.
+</details>
+
+<details>
+<summary><strong>Good solution: ask the model to cite and self-check</strong></summary>
+
+Require a verbatim quote on each finding, and ask the model in the same prompt to drop anything it cannot quote. This catches obvious inventions, but it still trusts the model to police itself, and a model that hallucinated a finding will happily hallucinate a matching quote, so the guarantee stays soft.
+</details>
+
+<details>
+<summary><strong>Great solution: a deterministic verify loop</strong></summary>
+
+Separate drafting from verifying. A model node drafts findings with cited quotes, then a deterministic, model-free node checks that each quote appears verbatim in the document text. Anything that fails is re-drafted up to a cap, then demoted to not stated rather than shown. The guarantee comes from code, not from trusting the model, which is also why it is unit-testable without a model. This is what CoverLens runs.
 
 ```mermaid
-erDiagram
-    POLICY_CHECK ||--o{ COVERAGE_ITEM : itemises
-    POLICY_CHECK ||--o{ DEFINITION_ITEM : defines
-    POLICY_CHECK ||--|{ CHECK_ITEM : "checklist, one per curated key"
-    POLICY_CHECK ||--o| PAYOUT : "may include"
-
-    POLICY_CHECK {
-        string id
-        string insurer
-        string name
-        Category category
-        string summary
-        number benefitAmount
-        number premium
-        boolean needsReview
-        boolean sample
-    }
-    COVERAGE_ITEM {
-        string benefit
-        string limit
-        string detail
-        string quote
-    }
-    DEFINITION_ITEM {
-        string term
-        string definition
-        string quote
-    }
-    CHECK_ITEM {
-        CheckKey key
-        CheckStatus status
-        string detail
-        string quote
-        CheckSeverity severity
-    }
-    PAYOUT {
-        number deductible
-        number coPayPercent
-        number coPayCap
-    }
+flowchart TD
+    Draft[Draft summary and findings, each citing a quote] --> Verify{Quote appears verbatim in the source text?}
+    Verify -->|no, still under the draft cap| Draft
+    Verify -->|yes, or cap reached| Final[Finalize, demote any unquotable finding to not stated]
 ```
+</details>
 
-Client-side only, no database. The checklist always holds one `CHECK_ITEM` per curated key, in a fixed order, each either `found` (with `detail` and `quote`) or `not-stated`.
+### 2) How do we handle sensitive documents without becoming a breach liability?
 
-## Spec-driven development
+Insurance policies are sensitive financial documents, so where they rest matters.
 
-Requirements are not prose, they are data. Every behaviour lives in `apps/insure/specs/insure.yml` as a uniquely identified `given / when / then` rule with a category and severity. Each ID is bound to a test by tagging the test title, and a strict coverage gate fails the build if any requirement is uncovered.
+<details>
+<summary><strong>Bad solution: store the documents for history and analytics</strong></summary>
 
-```yaml
-- id: INSURE-CHECK-001
-  title: A fine-print finding is grounded only if its quote appears in the document
-  category: data
-  severity: critical
-  given: Draft findings where one cites a quote that is not present in the policy document text and one cites a quote that is
-  when: The grounding check runs against the source text
-  then: The finding whose quote is absent from the source is flagged as ungrounded while the finding whose quote is present passes
-  tags: [checker, grounding, safety]
-```
+Persist every uploaded document in a database so users get history and you get analytics. Convenient, but now you hold a pile of sensitive financial documents, which is a breach target and a compliance burden.
+</details>
 
-The matching test is titled `[INSURE-CHECK-001] ...`. The coverage tool cross-checks the spec against the tests that actually ran:
+<details>
+<summary><strong>Good solution: store only extracted text, encrypted, short retention</strong></summary>
 
-```
-insure v1: 100% covered (28/28)
-```
+Keep just the extracted text, encrypted at rest, and delete it after a short window. A smaller surface, but you still own sensitive data and the retention window is still a risk to manage and explain.
+</details>
 
-The grounding logic runs on Vitest, the rest on Playwright, and accessibility is checked with axe. The non-deterministic AI call is stubbed in e2e (`page.route` on `/api/check`) so the gate stays offline and deterministic. The build is not done until the gate is green; tests and code ship in the same change.
+<details>
+<summary><strong>Great solution: store nothing server-side</strong></summary>
+
+The text is sent to the model to be read, then discarded, and results live only in the browser's localStorage. There is no datastore to breach. The trade-off is no cross-device history and the model provider does see the text, which is disclosed in the app. A deliberate quality-over-features choice.
+</details>
+
+### 3) How do we protect a public, unauthenticated, paid endpoint?
+
+The check endpoint is unauthenticated and every call spends money on model tokens.
+
+<details>
+<summary><strong>Bad solution: leave it open</strong></summary>
+
+Ship with no guard. Any script can call it in a loop and run up the bill, and a cross-site page can use it freely.
+</details>
+
+<details>
+<summary><strong>Good solution: origin allow-list and an in-memory rate limit</strong></summary>
+
+Reject cross-site and origin-less callers with an allow-list, and add a best-effort sliding-window rate limit on the route. Stops casual abuse, and is what the app ships. The limit only sees one Lambda instance, so under concurrency it is not a hard cap.
+</details>
+
+<details>
+<summary><strong>Great solution: a shared limiter and a per-user quota</strong></summary>
+
+Move the counter to Upstash Redis so the limit holds across every instance at once, and add a per-user quota so one caller cannot drain the budget. The path before wide public exposure.
+</details>
+
+### 4) How do we keep model cost bounded as usage grows?
+
+The model call is the real cost, so the question is how to avoid paying for it more than necessary.
+
+<details>
+<summary><strong>Bad solution: every request hits the model</strong></summary>
+
+Run the full check on every upload with no caching. Cost grows linearly with traffic, and re-checking the same policy pays again every time.
+</details>
+
+<details>
+<summary><strong>Good solution: cheaper model for short documents</strong></summary>
+
+Route short documents to a cheaper model and cap request size. Trims the average cost, but identical uploads are still re-processed from scratch.
+</details>
+
+<details>
+<summary><strong>Great solution: a content cache and a queue for large documents</strong></summary>
+
+Cache results keyed on a document fingerprint so re-checking the same policy is free, queue very large documents so the request path stays fast, and log per-call latency and cost so spend is visible. Scale-to-zero Lambda already handles concurrency, so this is about cost, not servers.
+</details>
+
+### 5) How do we test a non-deterministic, model-backed system in CI?
+
+The grounding rule must be proven on every build, but the model is non-deterministic.
+
+<details>
+<summary><strong>Bad solution: call the real model in tests</strong></summary>
+
+Hit the live model in the test suite. Flaky, slow, costs money on every run, and a model update can silently turn the build red for no code reason.
+</details>
+
+<details>
+<summary><strong>Good solution: record and replay fixtures</strong></summary>
+
+Record real model responses once and replay them. Deterministic and offline, but the fixtures drift from reality over time and must be re-recorded to stay honest.
+</details>
+
+<details>
+<summary><strong>Great solution: deterministic grounding plus a stubbed model</strong></summary>
+
+The grounding logic is deterministic and model-free, so it is unit-tested directly on Vitest. The Playwright e2e stubs the model via page.route so it is offline. A spec maps each of the 28 requirements to a passing test, and the gate fails the build if any is uncovered. The one thing that must be correct, grounding, is tested without a model at all.
+</details>
+
+---
 
 ## Tech stack
 
 | Layer | Tech |
 |---|---|
 | Framework | Next.js 16 (App Router), React 19, TypeScript strict |
-| Styling | Tailwind CSS v4, Geist fonts |
-| PDF | `pdfjs-dist`, worker bundled as a `/_next/static` asset |
-| AI checker | LangGraph (`@langchain/langgraph`) grounding graph; the model node reuses the Vercel AI SDK (`generateObject` with `@ai-sdk/anthropic` and a Zod schema) |
+| PDF | pdfjs-dist, worker bundled as a static asset |
+| AI checker | LangGraph grounding graph, model node via Vercel AI SDK generateObject with the Anthropic provider |
 | Grounding | Deterministic quote-in-document verification, unit-tested without a model |
-| Validation | Zod at the server-route boundary |
-| Abuse guards | Origin allow-list and best-effort in-memory rate limit on `/api/check` |
+| Validation | Zod at the route boundary |
+| Abuse guards | Origin allow-list, best-effort in-memory rate limit |
 | Infra | AWS Lambda, S3, CloudFront via OpenNext, provisioned with AWS CDK |
-| Testing | Vitest, Playwright, axe; spec-driven coverage gate |
+| Testing | Vitest, Playwright, axe, plus a spec-driven coverage gate |
 | Built on | the [platform template](https://github.com/elleskay/platform) |
-
-## Local development
-
-```bash
-cd apps/insure
-npm install
-# The checker route needs a key; without it, it returns 503.
-ANTHROPIC_API_KEY=sk-ant-... npm run dev
-```
-
-Open http://localhost:3000. Override the model with `CHECKER_MODEL` (default `claude-sonnet-4-6`).
-
-## Testing
-
-```bash
-cd apps/insure
-npm run test:spec   # build, unit, e2e, coverage gate
-npm run lint
-npx tsc --noEmit
-```
-
-`test:spec` runs the unit tests (Vitest), the e2e tests (Playwright), then the coverage gate, which exits non-zero if any of the 28 requirements is uncovered or its test is red.
-
-## Deployment
-
-Push runs the quality gates in GitHub Actions. The live deploy is a manual local CDK run, because the API key is baked into the Lambda environment at synth time and must be present when you deploy.
-
-```mermaid
-flowchart LR
-    Dev([Developer]) -->|git push| GH[GitHub]
-    GH --> CI[CI: typecheck, lint, build, synth]
-    GH --> Sec[Security: CodeQL, gitleaks, audit]
-    GH --> Test[Test: spec gate 28/28]
-    Dev -->|manual deploy| Build[OpenNext build]
-    Build --> CDK[cdk deploy, key baked at synth]
-    CDK --> Infra[S3, Lambda, CloudFront]
-    Infra --> Live([Live on CloudFront])
-```
-
-```bash
-cd apps/insure && npm run build:open-next
-cd ../../infra/cdk/insure
-ANTHROPIC_API_KEY=sk-ant-... \
-PLATFORM_DEMO_APP_PATH=apps/insure \
-CDK_DEFAULT_REGION=ap-southeast-1 \
-npx cdk deploy --require-approval never
-```
-
-Stack: `InsureServerless`. See `docs/DEPLOY.md` for the platform deploy gotchas.
-
-### Before sharing the live URL publicly
-
-`/api/check` is a public, unauthenticated endpoint that fires paid model calls. The app ships two guards: an origin allow-list (set via `ALLOWED_ORIGINS`, so production rejects cross-site and origin-less callers) and a best-effort in-memory sliding-window rate limit. The rate limit only sees one Lambda instance, so for a hard, multi-instance cap, wire the platform Upstash helper (`apps/_template/lib/rate-limit.ts`) and set the `UPSTASH_*` env vars before wide exposure.
-
-## Structure
-
-```
-apps/insure/
-  app/            # layout, page, /api/check, globals.css
-  components/     # PolicyChecker, PdfUpload, Aurora, TiltCard
-  lib/insure/     # types (domain + checklist), checker (grounding logic + schema + prompt),
-                  # checker-graph (LangGraph graph), security (abuse guards), sample, meta
-  specs/          # insure.yml (the source of truth for tests)
-  tests/          # unit (Vitest) + e2e (Playwright) + fixtures
-infra/cdk/insure/ # CDK package (stack InsureServerless)
-```
 
 ## License
 
