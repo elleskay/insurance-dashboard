@@ -1,15 +1,17 @@
 {
-  "name": "platform",
-  "version": "0.7.0",
+  "name": "insurance-dashboard",
+  "version": "1.0.0",
   "private": true,
-  "description": "TypeScript platform template for Next.js apps on AWS serverless.",
+  "description": "CoverLens: Singapore insurance policy checker (apps/insure) built on the platform template's Next.js + AWS serverless stack.",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "echo 'Platform template has no app source. Apps add their own typecheck script.'",
-    "lint": "echo 'Platform template has no app source. Apps add their own lint script.'",
+    "build:spec-test": "npm run build --workspace packages/spec-test",
+    "typecheck": "npm run build:spec-test && npm run typecheck --workspaces --if-present",
+    "lint": "npm run build:spec-test && npm run lint --workspaces --if-present",
+    "test": "npm run build:spec-test && npm run test:unit --workspaces --if-present",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

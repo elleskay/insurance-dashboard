@@ -4,7 +4,7 @@
 
 Report security issues via either channel (prefer the first if available):
 
-1. **GitHub Private Vulnerability Reporting:** [github.com/elleskay/platform/security/advisories/new](https://github.com/elleskay/platform/security/advisories/new). Encrypted, tracked, and lets us coordinate a fix and CVE if needed.
+1. **GitHub Private Vulnerability Reporting:** [github.com/elleskay/insurance-dashboard/security/advisories/new](https://github.com/elleskay/insurance-dashboard/security/advisories/new). Encrypted, tracked, and lets us coordinate a fix and CVE if needed.
 2. **Email:** lskpes10@gmail.com
 
 Do not open public GitHub issues for security problems.
@@ -17,16 +17,14 @@ Latest `main` only.
 
 ## Scope
 
-This template provides platform-layer security defaults:
+This repo ships CoverLens (`apps/insure`) on the platform template's security defaults:
 
 - Dependency scanning via Dependabot
-- Code scanning via GitHub CodeQL
-- Secret scanning via GitHub native
-- Security headers via Next.js `headers()` in `next.config.ts`
-- Rate limiting on sensitive routes
-- Input validation via Zod
-- Secrets managed via AWS Secrets Manager (not env files in prod)
+- Code scanning via GitHub CodeQL, secret scanning via gitleaks + GitHub native
+- Security headers via Next.js `headers()` in `apps/insure/next.config.ts`
+- Origin allow-list and rate limiting on the paid `/api/check` route (`apps/insure/lib/insure/security.ts`)
+- Input validation via Zod at the route boundary
+- No server-side storage of uploaded documents; results persist only in the user's browser
+- Production secrets live in GitHub Actions secrets and are baked into the Lambda environment at deploy time (never committed)
 
-Apps built on this template are expected to maintain these defaults and add app-specific controls as needed.
-
-See `docs/SSDLC.md` for the secure development lifecycle this template assumes.
+See `docs/SSDLC.md` for the secure development lifecycle this repo assumes.

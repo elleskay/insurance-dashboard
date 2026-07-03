@@ -22,7 +22,13 @@ updates:
     schedule:
       interval: "weekly"
 
+  # The live CDK package has its own lockfile outside the npm workspaces.
+  # The _template and _setup scaffolds are intentionally not tracked here;
+  # they are updated by pulling from the platform template.
   - package-ecosystem: "npm"
-    directory: "/infra/cdk/base"
+    directory: "/infra/cdk/insure"
     schedule:
       interval: "weekly"
+    groups:
+      cdk:
+        update-types: ["minor", "patch"]

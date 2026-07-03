@@ -8,11 +8,10 @@
     "build": "next build",
     "build:open-next": "open-next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@eslint/eslintrc": "^3.3.5",
     "@opennextjs/aws": "^4.0.3",
     "@sentry/nextjs": "^10.55.0",
     "@upstash/ratelimit": "^2.0.0",
@@ -33,7 +32,6 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
-    "eslint-config-next": "^16.0.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.4.0"
   }

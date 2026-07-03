@@ -15,7 +15,7 @@ requirements:
     category: data
     severity: high
     given: A submission with 5 ok and 1 not-ok across 6 items
-    when: computeScore({ ok: 5, total: 6 }) is called
+    when: "computeScore({ ok: 5, total: 6 }) is called"
     then: Result is 83
     tags: [scoring]
 

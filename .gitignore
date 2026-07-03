@@ -46,3 +46,6 @@ test-results/
 # Misc
 .cache/
 .turbo/
+
+# Local tooling output
+.playwright-mcp/
