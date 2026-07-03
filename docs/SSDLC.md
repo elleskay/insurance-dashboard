@@ -4,32 +4,32 @@ What this template gives you out of the box, and what each app is expected to ma
 
 ## What the template provides
 
-| Control | Where |
-|---|---|
-| Dependency scanning | `.github/dependabot.yml` |
-| Code scanning (SAST) | `.github/workflows/security.yml` (CodeQL) |
-| Secret scanning | GitHub native + gitleaks workflow |
-| `npm audit` on CI | `.github/workflows/security.yml` |
-| Branch protection | manual GitHub setting (see SETUP.md) |
-| Conventional commits | `commitlint.config.mjs` |
-| PR template with security checkbox | `.github/pull_request_template.md` |
-| Disclosure policy | `SECURITY.md` |
+| Control                            | Where                                     |
+| ---------------------------------- | ----------------------------------------- |
+| Dependency scanning                | `.github/dependabot.yml`                  |
+| Code scanning (SAST)               | `.github/workflows/security.yml` (CodeQL) |
+| Secret scanning                    | GitHub native + gitleaks workflow         |
+| `npm audit` on CI                  | `.github/workflows/security.yml`          |
+| Branch protection                  | manual GitHub setting (see SETUP.md)      |
+| Conventional commits               | `commitlint.config.mjs`                   |
+| PR template with security checkbox | `.github/pull_request_template.md`        |
+| Disclosure policy                  | `SECURITY.md`                             |
 
 ## What each app must add
 
-| Control | How |
-|---|---|
+| Control          | How                                                                |
+| ---------------- | ------------------------------------------------------------------ |
 | Security headers | Helmet middleware (Express/NestJS) or `next.config.ts` `headers()` |
-| Input validation | Zod schemas at every API boundary |
-| Auth | Auth.js / Passport.js / Clerk — never roll your own |
-| Authorization | Per-route guards, principle of least privilege |
-| Rate limiting | Upstash Redis or AWS WAF on auth and payment routes |
-| CSRF protection | Framework default (Next.js Server Actions, NestJS CSRF middleware) |
-| HTTPS only | Enforced via AWS ALB / CloudFront |
-| Secrets in prod | AWS Secrets Manager, never env files |
-| Error tracking | Sentry (catches unhandled exceptions that may leak info) |
-| Logging | Structured JSON logs, no PII, no secrets |
-| Database access | Parameterized queries only (ORM enforces this) |
+| Input validation | Zod schemas at every API boundary                                  |
+| Auth             | Auth.js / Passport.js / Clerk — never roll your own                |
+| Authorization    | Per-route guards, principle of least privilege                     |
+| Rate limiting    | Upstash Redis or AWS WAF on auth and payment routes                |
+| CSRF protection  | Framework default (Next.js Server Actions, NestJS CSRF middleware) |
+| HTTPS only       | Enforced via AWS ALB / CloudFront                                  |
+| Secrets in prod  | AWS Secrets Manager, never env files                               |
+| Error tracking   | Sentry (catches unhandled exceptions that may leak info)           |
+| Logging          | Structured JSON logs, no PII, no secrets                           |
+| Database access  | Parameterized queries only (ORM enforces this)                     |
 
 ## Threat model basics
 

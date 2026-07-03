@@ -40,7 +40,9 @@ export default async function LoginPage({
         ) : null}
         <input type="hidden" name="callbackUrl" value={sp.callbackUrl ?? "/dashboard"} />
         <div className="space-y-1">
-          <label htmlFor="email" className="block text-sm font-medium">Email</label>
+          <label htmlFor="email" className="block text-sm font-medium">
+            Email
+          </label>
           <input
             id="email"
             name="email"
@@ -52,7 +54,9 @@ export default async function LoginPage({
           />
         </div>
         <div className="space-y-1">
-          <label htmlFor="password" className="block text-sm font-medium">Password</label>
+          <label htmlFor="password" className="block text-sm font-medium">
+            Password
+          </label>
           <input
             id="password"
             name="password"

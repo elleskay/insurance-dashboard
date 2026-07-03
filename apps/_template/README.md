@@ -1,26 +1,26 @@
-# apps/_template — reference overlay files
+# apps/\_template — reference overlay files
 
 Files you copy into a new app on first scaffold. They encode the production patterns this platform discovered the hard way.
 
 ## What's here
 
-| File | Purpose |
-|---|---|
-| `next.config.ts` | Security headers + Server Actions `allowedOrigins` (read from `ALLOWED_ORIGINS` env at build time) |
-| `auth.config.ts` | Edge-safe NextAuth config for middleware (no DB calls) |
-| `middleware.ts` | Auth-only middleware that reads `auth.config.ts` |
-| `components/SignOutButton.tsx` | Client component for signout (server-action signout doesn't clear cookies on OpenNext) |
-| `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`, `instrumentation.ts` | Sentry wiring. No-ops without `SENTRY_DSN` |
-| `components/PostHogProvider.tsx` | PostHog analytics provider. No-ops without `NEXT_PUBLIC_POSTHOG_KEY` |
-| `components/Toaster.tsx` | Sonner toast root. Mount once in layout. |
-| `lib/email.ts` | Resend helper. No-ops without `RESEND_API_KEY` |
-| `lib/rate-limit.ts` | Upstash Redis rate-limit factory. No-ops without `UPSTASH_REDIS_*` |
-| `components/StatCard.tsx` | Generic stat card with lucide icon, value, tone, optional delta |
-| `components/EmptyState.tsx` | Generic empty state with lucide icon, title, optional CTA |
-| `components/PageHeader.tsx` | Generic page header with title, description, actions |
-| `components/ThemeProvider.tsx`, `components/ThemeToggle.tsx` | next-themes wiring + sun/moon/system toggle |
-| `components/forms-README.md` | Doc on the two valid form patterns; install RHF per app if you want pattern B |
-| `components/theming-README.md` | Doc on picking brand color, icon, layout, dashboard composition per app |
+| File                                                                                                | Purpose                                                                                            |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `next.config.ts`                                                                                    | Security headers + Server Actions `allowedOrigins` (read from `ALLOWED_ORIGINS` env at build time) |
+| `auth.config.ts`                                                                                    | Edge-safe NextAuth config for middleware (no DB calls)                                             |
+| `middleware.ts`                                                                                     | Auth-only middleware that reads `auth.config.ts`                                                   |
+| `components/SignOutButton.tsx`                                                                      | Client component for signout (server-action signout doesn't clear cookies on OpenNext)             |
+| `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`, `instrumentation.ts` | Sentry wiring. No-ops without `SENTRY_DSN`                                                         |
+| `components/PostHogProvider.tsx`                                                                    | PostHog analytics provider. No-ops without `NEXT_PUBLIC_POSTHOG_KEY`                               |
+| `components/Toaster.tsx`                                                                            | Sonner toast root. Mount once in layout.                                                           |
+| `lib/email.ts`                                                                                      | Resend helper. No-ops without `RESEND_API_KEY`                                                     |
+| `lib/rate-limit.ts`                                                                                 | Upstash Redis rate-limit factory. No-ops without `UPSTASH_REDIS_*`                                 |
+| `components/StatCard.tsx`                                                                           | Generic stat card with lucide icon, value, tone, optional delta                                    |
+| `components/EmptyState.tsx`                                                                         | Generic empty state with lucide icon, title, optional CTA                                          |
+| `components/PageHeader.tsx`                                                                         | Generic page header with title, description, actions                                               |
+| `components/ThemeProvider.tsx`, `components/ThemeToggle.tsx`                                        | next-themes wiring + sun/moon/system toggle                                                        |
+| `components/forms-README.md`                                                                        | Doc on the two valid form patterns; install RHF per app if you want pattern B                      |
+| `components/theming-README.md`                                                                      | Doc on picking brand color, icon, layout, dashboard composition per app                            |
 
 ## Why each one exists
 

@@ -141,10 +141,7 @@ export function isQuoteGrounded(quote: string, normalizedSource: string): boolea
  * whose quote we cannot locate in the source document. Findings for unknown
  * checklist keys are flagged too, so a stray key cannot slip through.
  */
-export function verifyGrounding(
-  policies: DraftPolicy[],
-  sourceText: string,
-): GroundingIssue[] {
+export function verifyGrounding(policies: DraftPolicy[], sourceText: string): GroundingIssue[] {
   const normalizedSource = normalizeForMatch(sourceText);
   const issues: GroundingIssue[] = [];
   policies.forEach((policy, policyIndex) => {
@@ -219,20 +216,13 @@ export function computePayout(
 /** A dollar figure is grounded if it appears in the raw source as digits or a
  * comma-grouped number (for example 3500 or 3,500). */
 export function groundsAmount(n: number, rawSource: string): boolean {
-  return (
-    rawSource.includes(String(n)) ||
-    rawSource.includes(n.toLocaleString("en-US"))
-  );
+  return rawSource.includes(String(n)) || rawSource.includes(n.toLocaleString("en-US"));
 }
 
 /** A percentage is grounded if the document writes it as a percent. */
 export function groundsPercent(n: number, rawSource: string): boolean {
   const s = rawSource.toLowerCase();
-  return (
-    s.includes(`${n}%`) ||
-    s.includes(`${n} percent`) ||
-    s.includes(`${n} per cent`)
-  );
+  return s.includes(`${n}%`) || s.includes(`${n} percent`) || s.includes(`${n} per cent`);
 }
 
 /**
@@ -262,10 +252,7 @@ export function buildPayout(
  * Conditional-edge router: revise while there are ungrounded findings and we
  * are under the draft cap, otherwise finalise.
  */
-export function routeAfterVerify(
-  issues: GroundingIssue[],
-  attempts: number,
-): "draft" | "finalize" {
+export function routeAfterVerify(issues: GroundingIssue[], attempts: number): "draft" | "finalize" {
   return issues.length > 0 && attempts < MAX_DRAFTS ? "draft" : "finalize";
 }
 
@@ -403,16 +390,24 @@ export const checkDraftSchema = z.object({
             z.object({
               benefit: z
                 .string()
-                .describe("What is covered, in plain words. For example 'Hospital room and board', 'Surgical benefit', 'Death benefit', 'Critical illness lump sum', 'Outpatient cancer treatment'."),
+                .describe(
+                  "What is covered, in plain words. For example 'Hospital room and board', 'Surgical benefit', 'Death benefit', 'Critical illness lump sum', 'Outpatient cancer treatment'.",
+                ),
               limit: z
                 .string()
-                .describe("The amount or limit exactly as stated. For example 'As charged', '$200,000', 'up to $1,500 per day', 'up to 5x MediShield Life limit'. Use 'Not stated' only if truly absent."),
+                .describe(
+                  "The amount or limit exactly as stated. For example 'As charged', '$200,000', 'up to $1,500 per day', 'up to 5x MediShield Life limit'. Use 'Not stated' only if truly absent.",
+                ),
               detail: z
                 .string()
-                .describe("One plain-language sentence on what this benefit gives the policyholder."),
+                .describe(
+                  "One plain-language sentence on what this benefit gives the policyholder.",
+                ),
               quote: z
                 .string()
-                .describe("A short VERBATIM quote copied exactly from the document that states this benefit and its limit. Must literally appear in the document text."),
+                .describe(
+                  "A short VERBATIM quote copied exactly from the document that states this benefit and its limit. Must literally appear in the document text.",
+                ),
             }),
           )
           .describe(
@@ -423,13 +418,19 @@ export const checkDraftSchema = z.object({
             z.object({
               term: z
                 .string()
-                .describe("The term being defined, for example 'Total and permanent disability', 'Critical illness severity', 'Survival period', 'Major cancer', 'Pre-existing condition'."),
+                .describe(
+                  "The term being defined, for example 'Total and permanent disability', 'Critical illness severity', 'Survival period', 'Major cancer', 'Pre-existing condition'.",
+                ),
               definition: z
                 .string()
-                .describe("A plain-language restatement of how THIS policy defines the term, in one or two sentences."),
+                .describe(
+                  "A plain-language restatement of how THIS policy defines the term, in one or two sentences.",
+                ),
               quote: z
                 .string()
-                .describe("A short VERBATIM quote copied exactly from the document that states the definition. Must literally appear in the document text."),
+                .describe(
+                  "A short VERBATIM quote copied exactly from the document that states the definition. Must literally appear in the document text.",
+                ),
             }),
           )
           .describe(
@@ -438,18 +439,16 @@ export const checkDraftSchema = z.object({
         benefitAmount: z
           .number()
           .describe("Headline sum assured or benefit amount in SGD. Use 0 if not stated."),
-        premium: z
-          .number()
-          .describe("Annual premium in SGD. Use 0 if not stated."),
+        premium: z.number().describe("Annual premium in SGD. Use 0 if not stated."),
         premiumNote: z
           .string()
-          .describe("Short note on the premium, for example 'not guaranteed, rises with age'. Empty string if nothing notable."),
+          .describe(
+            "Short note on the premium, for example 'not guaranteed, rises with age'. Empty string if nothing notable.",
+          ),
         findings: z
           .array(
             z.object({
-              key: z
-                .enum(CHECK_ITEMS)
-                .describe("Which curated watch-out this is."),
+              key: z.enum(CHECK_ITEMS).describe("Which curated watch-out this is."),
               detail: z
                 .string()
                 .describe("One plain-language sentence explaining this watch-out for this policy."),
@@ -460,7 +459,9 @@ export const checkDraftSchema = z.object({
                 ),
               severity: z
                 .enum(["info", "watch", "caution"])
-                .describe("info: routine. watch: worth knowing. caution: could materially limit a claim."),
+                .describe(
+                  "info: routine. watch: worth knowing. caution: could materially limit a claim.",
+                ),
             }),
           )
           .describe(
@@ -470,15 +471,23 @@ export const checkDraftSchema = z.object({
           .object({
             deductible: z
               .number()
-              .describe("Deductible or excess in SGD the insured pays before the policy pays anything, exactly as stated. 0 if not stated."),
+              .describe(
+                "Deductible or excess in SGD the insured pays before the policy pays anything, exactly as stated. 0 if not stated.",
+              ),
             coPaymentPercent: z
               .number()
-              .describe("Co-payment or co-insurance percentage charged after the deductible (for example 5 for 5%). 0 if not stated."),
+              .describe(
+                "Co-payment or co-insurance percentage charged after the deductible (for example 5 for 5%). 0 if not stated.",
+              ),
             coPaymentCap: z
               .number()
-              .describe("Any annual cap in SGD on the co-payment, exactly as stated. 0 if not stated."),
+              .describe(
+                "Any annual cap in SGD on the co-payment, exactly as stated. 0 if not stated.",
+              ),
           })
-          .describe("Out-of-pocket figures for the worked payout example. Use 0 for anything the document does not state. Do not estimate."),
+          .describe(
+            "Out-of-pocket figures for the worked payout example. Use 0 for anything the document does not state. Do not estimate.",
+          ),
       }),
     )
     .describe("One entry per distinct policy or plan found in the document."),
@@ -498,16 +507,15 @@ const CHECKLIST_BRIEF = CHECK_ITEMS.map(
 ).join("\n");
 
 /** Render the document text (and any prior grounding issues to fix) as a prompt. */
-export function buildCheckPrompt(
-  sourceText: string,
-  priorIssues: GroundingIssue[],
-): string {
+export function buildCheckPrompt(sourceText: string, priorIssues: GroundingIssue[]): string {
   const lines: string[] = [];
   lines.push("Watch-out items to look for (only report the ones the document actually supports):");
   lines.push(CHECKLIST_BRIEF);
   if (priorIssues.length > 0) {
     lines.push("");
-    lines.push("Your previous draft had these grounding problems. Fix them by quoting the exact wording or dropping the finding:");
+    lines.push(
+      "Your previous draft had these grounding problems. Fix them by quoting the exact wording or dropping the finding:",
+    );
     for (const issue of priorIssues) lines.push(`- ${issue.reason}`);
   }
   lines.push("");

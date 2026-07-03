@@ -1,0 +1,10 @@
+# Generated files (gitignored build output is excluded via .gitignore already)
+package-lock.json
+**/package-lock.json
+**/next-env.d.ts
+
+# Recorded fixtures and sample outputs; must stay byte-stable
+packages/spec-test/samples/
+
+# Local tooling output
+.playwright-mcp/

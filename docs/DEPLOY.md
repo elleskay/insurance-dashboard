@@ -20,21 +20,23 @@ You only need this once per account+region. Bootstrap provisions the CDK toolkit
    ```json
    {
      "Version": "2012-10-17",
-     "Statement": [{
-       "Effect": "Allow",
-       "Principal": {
-         "Federated": "arn:aws:iam::<account>:oidc-provider/token.actions.githubusercontent.com"
-       },
-       "Action": "sts:AssumeRoleWithWebIdentity",
-       "Condition": {
-         "StringEquals": {
-           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "Federated": "arn:aws:iam::<account>:oidc-provider/token.actions.githubusercontent.com"
          },
-         "StringLike": {
-           "token.actions.githubusercontent.com:sub": "repo:elleskay/my-app:*"
+         "Action": "sts:AssumeRoleWithWebIdentity",
+         "Condition": {
+           "StringEquals": {
+             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+           },
+           "StringLike": {
+             "token.actions.githubusercontent.com:sub": "repo:elleskay/my-app:*"
+           }
          }
        }
-     }]
+     ]
    }
    ```
 
@@ -43,42 +45,50 @@ You only need this once per account+region. Bootstrap provisions the CDK toolkit
 
 ### GitHub Actions secrets and variables
 
-| Setting | Type | Value |
-|---|---|---|
-| `AWS_DEPLOY_ROLE_ARN` | secret | OIDC role ARN |
-| `DATABASE_URL` | secret | Postgres connection string |
-| `AUTH_SECRET` | secret | `openssl rand -base64 32` |
-| `AWS_REGION` | variable | e.g. `ap-southeast-1` |
-| `APP_URL` | variable | Your CloudFront URL or custom domain |
-| `ALLOWED_ORIGINS` | variable | CloudFront host + Lambda URL host, comma-separated |
+Configured for this repo (CoverLens has no database or auth):
 
-### Optional (for the 5 wired helpers in apps/_template)
+| Setting               | Type      | Value                                                        |
+| --------------------- | --------- | ------------------------------------------------------------ |
+| `AWS_DEPLOY_ROLE_ARN` | secret    | OIDC role ARN (from `infra/cdk/_setup`)                      |
+| `ANTHROPIC_API_KEY`   | secret    | Model key for the `/api/check` checker                       |
+| `AWS_REGION`          | variable  | e.g. `ap-southeast-1`                                        |
+| `APP_URL`             | variable  | Your CloudFront URL or custom domain                         |
+| `ALLOWED_ORIGINS`     | variable  | CloudFront host + custom domain, comma-separated             |
+| `APP_DIR` / `CDK_DIR` | variables | Only if paths differ from `apps/insure` / `infra/cdk/insure` |
+| `CHECKER_MODEL`       | variable  | Optional model override for the checker                      |
+
+An app with auth and a database additionally needs `DATABASE_URL` (secret) and `AUTH_SECRET` (secret, `openssl rand -base64 32`).
+
+### Optional (for the 5 wired helpers in apps/\_template)
 
 All five helpers no-op cleanly without their env vars, so omit any you don't use yet.
 
-| Setting | Type | Used by |
-|---|---|---|
-| `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` | secret + variable | Sentry server + client |
-| `SENTRY_AUTH_TOKEN` | secret | Sentry source map upload (release build) |
-| `NEXT_PUBLIC_POSTHOG_KEY` | variable | PostHog analytics |
-| `NEXT_PUBLIC_POSTHOG_HOST` | variable | Optional; default `https://us.i.posthog.com` |
-| `RESEND_API_KEY` | secret | `lib/email.ts` |
-| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | secrets | `lib/rate-limit.ts` |
+| Setting                                               | Type              | Used by                                      |
+| ----------------------------------------------------- | ----------------- | -------------------------------------------- |
+| `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`               | secret + variable | Sentry server + client                       |
+| `SENTRY_AUTH_TOKEN`                                   | secret            | Sentry source map upload (release build)     |
+| `NEXT_PUBLIC_POSTHOG_KEY`                             | variable          | PostHog analytics                            |
+| `NEXT_PUBLIC_POSTHOG_HOST`                            | variable          | Optional; default `https://us.i.posthog.com` |
+| `RESEND_API_KEY`                                      | secret            | `lib/email.ts`                               |
+| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | secrets           | `lib/rate-limit.ts`                          |
 
 ## What the deploy does
 
-`.github/workflows/deploy.yml` runs on push to `main`:
+`.github/workflows/deploy.yml` runs on push to `main` (skipping docs-only changes):
 
-1. Checkout, install Node 20, restore npm cache.
-2. Assume the OIDC role.
-3. Install workspace dependencies (`npm ci`).
-4. Apply DB migrations (`npx tsx db/migrate.ts` in `apps/web/`), conditional on `db/migrate.ts` existing. Runs **before** the new Lambda code goes live so the new code never references a column that hasn't been created yet.
-5. Seed reference / demo data (`npx tsx db/seed-demo.ts` in `apps/web/`), conditional on `db/seed-demo.ts` existing. Must be idempotent. See `docs/variants/default-nextjs.md` "Seed strategy".
-6. Build the Next.js app with OpenNext (`npm run build:open-next` in `apps/web/`). Env vars passed in: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `ALLOWED_ORIGINS`.
-7. Install CDK deps (`npm ci` in `infra/cdk/app/`).
-8. `cdk deploy --all` with the same env vars. CDK reads them at synth time and bakes them into the Lambda env.
-9. Read the deployed URL from `cdk-outputs.json`.
-10. Run `scripts/verify-deploy.sh` against that URL. Fails the workflow if any smoke check fails.
+1. Preflight: skip everything cleanly if `AWS_DEPLOY_ROLE_ARN` is not configured (fresh forks, the template repo itself).
+2. Gate: run the full spec suite (`npm run test:spec` in `apps/insure`), so a direct push to `main` cannot deploy code the gate has never passed.
+3. Checkout, install Node 22, restore npm cache, `npm ci`.
+4. Assume the OIDC role.
+5. Build `@platform/spec-test` (its gitignored dist is needed for the app's type-checked build), then build the app with OpenNext (`npm run build:open-next` in `apps/insure/`).
+6. Install CDK deps (`npm ci` in `infra/cdk/insure/`).
+7. `cdk deploy --all` with `ANTHROPIC_API_KEY`, `CHECKER_MODEL`, `ALLOWED_ORIGINS` in the environment. CDK reads them at synth time and bakes them into the Lambda env.
+8. Read the deployed URL from `cdk-outputs.json`.
+9. Smoke-test the live URL: the page renders the app, `/api/check` rejects a GET, and the security headers are present. Fails the workflow on any miss.
+
+A database-backed app restores the platform's migrate/seed steps (conditional `db/migrate.ts` and `db/seed-demo.ts` runs before the build) from the template repo's `deploy.yml`.
+
+For an auth app, `scripts/verify-deploy.sh` is the fuller smoke test (health endpoint, login redirect, NextAuth surface, no Lambda-URL leak); this repo's inline smoke test replaces it because CoverLens is a public single page.
 
 ## Rollback
 
@@ -132,11 +142,13 @@ These all bit us in production. The platform encodes the fixes; do not undo them
 **Symptom:** You don't know the CloudFront URL until after the first deploy completes. But the Lambda needs `AUTH_URL` set to that URL, and the Next.js build needs `ALLOWED_ORIGINS` to include it. Chicken and egg.
 
 **Fix (cheap):** Two-pass deploy.
+
 1. First pass: build with `ALLOWED_ORIGINS="*.cloudfront.net,*.lambda-url.<region>.on.aws"` (wildcards work for `allowedOrigins`). Deploy with `AUTH_URL="https://placeholder.cloudfront.net"`. The deploy succeeds; auth callbacks would fail.
 2. Read the CloudFront URL from `cdk-outputs.json`.
 3. Second pass: redeploy with `AUTH_URL=<real CloudFront URL>`. No rebuild needed if the only change is Lambda env vars.
 
 **Fix (better):** Use a custom domain. Pass `customDomain` to `NextjsServerless`:
+
 ```ts
 new NextjsServerless(this, "Web", {
   appPath,
@@ -149,6 +161,7 @@ new NextjsServerless(this, "Web", {
   },
 });
 ```
+
 Now `AUTH_URL` is known up front. One-pass deploy.
 
 ### 8. Refactoring an existing stack into the construct changes the CloudFront URL
@@ -156,6 +169,7 @@ Now `AUTH_URL` is known up front. One-pass deploy.
 **Symptom:** You wrote raw CDK first, then refactored to use `NextjsServerless`. CDK plans REPLACE for CloudFront, S3, Lambda. Your URL changes and CloudFront takes 10-15 minutes to delete the old distribution.
 
 **Fix:** Pass `logicalIdOverrides` to preserve CloudFormation logical IDs:
+
 ```ts
 new NextjsServerless(this, "Web", {
   appPath,
@@ -168,6 +182,7 @@ new NextjsServerless(this, "Web", {
   },
 });
 ```
+
 Find the existing IDs in your stack's `cdk synth` output (or in the AWS Console under CloudFormation, Resources tab) before the refactor. CDK then treats these as the same resources and updates in place.
 
 If you're shipping a brand-new app, ignore this. Logical ID overrides only matter for in-place upgrades.
@@ -195,6 +210,7 @@ See `docs/variants/default-nextjs.md` "Seed strategy" for the full pattern (incl
 **Cause:** The construct's default CloudFront behavior uses `CACHING_DISABLED`, so the HTML/RSC responses are never cached at the edge. Every visit and every prefetch goes to the server Lambda. That is the safe default for auth/SSR apps (never cache a personalized response) but wasteful and fragile for static/SSG-heavy apps.
 
 **Fix:** Two levers, use either or both.
+
 1. App level: set `prefetch={false}` on `next/link` to stop the prefetch fan-out (cheapest mitigation).
 2. Construct level: for a content/SSG app, pass `defaultCachePolicy` to `NextjsServerless` with a policy that honours origin `Cache-Control` (minTtl 0), so cacheable pages cache at CloudFront while dynamic routes (which Next marks `no-store`) stay uncached. See the `defaultCachePolicy` prop docs in `NextjsServerless.ts`.
 3. Or request a Lambda concurrency limit increase for the account.
@@ -212,12 +228,12 @@ For real multi-environment, deploy each to a separate AWS account.
 
 For a typical portfolio app with negligible traffic:
 
-| Resource | Monthly |
-|---|---|
-| Lambda invocations + duration (Free Tier covers 1M req + 400k GB-s) | $0 |
-| S3 storage (~50 MB) + GET requests | <$0.10 |
-| CloudFront transfer (Free Tier covers 1TB) | $0 |
-| CloudWatch Logs | ~$0.50 |
-| **Total realistic idle** | **<$1** |
+| Resource                                                            | Monthly |
+| ------------------------------------------------------------------- | ------- |
+| Lambda invocations + duration (Free Tier covers 1M req + 400k GB-s) | $0      |
+| S3 storage (~50 MB) + GET requests                                  | <$0.10  |
+| CloudFront transfer (Free Tier covers 1TB)                          | $0      |
+| CloudWatch Logs                                                     | ~$0.50  |
+| **Total realistic idle**                                            | **<$1** |
 
 At 100k requests/day you're still well within Free Tier. The Lambda + CloudFront pattern is genuinely cheap at low scale.

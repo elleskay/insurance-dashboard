@@ -29,12 +29,12 @@ A user-facing feature whose implementation spans multiple spec IDs can hit 100% 
 
 Real example from armoury:
 
-| Spec ID | What it asserts | Passed? |
-|---|---|---|
-| ARM-PHOTO-001 | Officer submit page renders `<input type="file">` for items with `kind === "photo"` | ✅ |
-| ARM-PHOTO-002 | A submitted photo persists as a data URL in `responses.valueText` | ✅ |
-| ARM-PHOTO-003 | The submission detail page renders an `<img>` for photo responses | ✅ |
-| **Untested** | **Admin builder dropdown offers Photo as a selectable item kind** | ❌ |
+| Spec ID       | What it asserts                                                                     | Passed? |
+| ------------- | ----------------------------------------------------------------------------------- | ------- |
+| ARM-PHOTO-001 | Officer submit page renders `<input type="file">` for items with `kind === "photo"` | ✅      |
+| ARM-PHOTO-002 | A submitted photo persists as a data URL in `responses.valueText`                   | ✅      |
+| ARM-PHOTO-003 | The submission detail page renders an `<img>` for photo responses                   | ✅      |
+| **Untested**  | **Admin builder dropdown offers Photo as a selectable item kind**                   | ❌      |
 
 All three spec IDs passed. Coverage was 126/126. The photo feature was unreachable because no admin could ever create a template item of `kind === "photo"` — the builder's `<Select>` was missing the option. The gate was satisfied; the feature was broken.
 
@@ -78,4 +78,4 @@ See `docs/TESTING.md` "Failure modes the gate does NOT catch" for the same cavea
 
 ## Why this package is private
 
-The platform copies, it does not import. Each app pins its own snapshot of `@platform/spec-test` from `packages/` rather than depending on a published version, so breaking changes never propagate without explicit action. See platform `README.md` "Opinions" for the philosophy.
+The platform copies, it does not import. Each app pins its own snapshot of `@platform/spec-test` from `packages/` rather than depending on a published version, so breaking changes never propagate without explicit action. See the [platform template](https://github.com/elleskay/platform) for the philosophy.

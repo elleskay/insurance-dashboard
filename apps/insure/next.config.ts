@@ -12,9 +12,8 @@ const securityHeaders = [
 // it, and standalone breaks `next start` (used by the Playwright e2e gate).
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
-  },
+  // Next.js expects headers() to return a promise even though ours is static.
+  headers: () => Promise.resolve([{ source: "/(.*)", headers: securityHeaders }]),
 };
 
 export default nextConfig;

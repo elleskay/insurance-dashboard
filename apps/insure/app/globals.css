@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Aesthetic ported from the resume-site: neutral base, purple/blue accents,
-   aurora blobs + grid background, gradient headings, glassy tilt cards, Geist. */
+   aurora blobs + grid background, gradient headings, Geist. */
 @theme {
   --color-page: oklch(0.99 0 0);
   --color-card: oklch(1 0 0);
@@ -38,20 +38,6 @@ h3 {
   font-family: var(--font-sans);
   color: var(--color-heading);
   letter-spacing: -0.02em;
-}
-
-.field-input {
-  width: 100%;
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-border);
-  background-color: oklch(1 0 0);
-  padding: 0.55rem 0.8rem;
-  color: var(--color-foreground);
-}
-.field-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px oklch(0.52 0.21 285 / 0.18);
 }
 
 .shadow-card {
@@ -96,40 +82,28 @@ h3 {
   background-size: 56px 56px;
 }
 @keyframes float-slow {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(20px, -30px) scale(1.05); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(20px, -30px) scale(1.05);
+  }
 }
-.animate-float-slow { animation: float-slow 16s ease-in-out infinite; }
+.animate-float-slow {
+  animation: float-slow 16s ease-in-out infinite;
+}
 @keyframes float-slower {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-30px, 20px) scale(1.1); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-30px, 20px) scale(1.1);
+  }
 }
-.animate-float-slower { animation: float-slower 22s ease-in-out infinite; }
-
-/* Cursor-tilt card with a spotlight that follows the pointer */
-.tilt-card {
-  position: relative;
-  transform: perspective(900px) rotateX(0) rotateY(0);
-  transform-style: preserve-3d;
-  transition: transform 0.3s ease, border-color 0.2s ease, box-shadow 0.3s ease;
-  will-change: transform;
-}
-.tilt-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    420px circle at var(--mx, 50%) var(--my, 50%),
-    oklch(0.6 0.2 290 / 0.16),
-    transparent 60%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-.tilt-card:hover::after {
-  opacity: 1;
+.animate-float-slower {
+  animation: float-slower 22s ease-in-out infinite;
 }
 
 :focus-visible {
@@ -145,8 +119,5 @@ h3 {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-  .tilt-card {
-    transform: none !important;
   }
 }

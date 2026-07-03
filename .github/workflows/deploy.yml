@@ -29,8 +29,8 @@ concurrency:
 
 env:
   # Override with repo variables if your paths differ from the convention.
-  APP_DIR: ${{ vars.APP_DIR || 'apps/web' }}
-  CDK_DIR: ${{ vars.CDK_DIR || 'infra/cdk/_template' }}
+  APP_DIR: ${{ vars.APP_DIR || 'apps/insure' }}
+  CDK_DIR: ${{ vars.CDK_DIR || 'infra/cdk/insure' }}
   NODE_VERSION: "22"
 
 jobs:
@@ -55,14 +55,50 @@ jobs:
             echo "::notice::AWS_DEPLOY_ROLE_ARN secret is not set. Skipping deploy. This is normal for the template repo itself; apps using the template need to configure secrets per docs/SETUP.md."
           fi
 
+  # The spec coverage gate must be green before anything ships (see
+  # docs/TESTING.md). Runs the same suite as test.yml so a direct push to main
+  # cannot deploy code the gate has never passed.
+  gate:
+    name: Spec gate before deploy
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Build @platform/spec-test
+        working-directory: packages/spec-test
+        run: npm run build
+      - name: Resolve Playwright version
+        id: pw
+        working-directory: ${{ env.APP_DIR }}
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browsers
+        working-directory: ${{ env.APP_DIR }}
+        run: npx playwright install --with-deps chromium
+      - name: Spec gate (build + unit + e2e + coverage)
+        working-directory: ${{ env.APP_DIR }}
+        run: npm run test:spec
+
   deploy:
     name: Deploy to ${{ github.event.inputs.environment || 'production' }}
-    needs: preflight
+    needs: [preflight, gate]
     if: needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'production' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -78,39 +114,8 @@ jobs:
       - name: Install workspace dependencies
         run: npm ci
 
-      # Apply DB migrations before the new Lambda code (which may reference
-      # new columns/tables) goes live. If the app does not use Drizzle, the
-      # conditional skips this step. Requires a db/migrate.ts script and
-      # DATABASE_URL secret.
-      - name: Apply database migrations (if db/migrate.ts exists)
-        working-directory: ${{ env.APP_DIR }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          if [ -f db/migrate.ts ]; then
-            npx tsx db/migrate.ts
-          else
-            echo "::notice::No db/migrate.ts found, skipping migration step"
-          fi
-
-      # Seed reference / demo data after migrations. Must be idempotent
-      # (look up by natural key, never delete user-generated rows) so reruns
-      # on every deploy are safe. See docs/variants/default-nextjs.md "Seed
-      # strategy" for the recommended pattern. Skipped if the app has no
-      # db/seed-demo.ts.
-      - name: Seed demo data (if db/seed-demo.ts exists)
-        working-directory: ${{ env.APP_DIR }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          if [ -f db/seed-demo.ts ]; then
-            npx tsx db/seed-demo.ts
-          else
-            echo "::notice::No db/seed-demo.ts found, skipping seed step"
-          fi
-
       - name: Cache Next.js build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.APP_DIR }}/.next/cache
           key: nextjs-deploy-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
@@ -123,29 +128,20 @@ jobs:
       - name: Build platform spec-test package
         run: npm run build --workspace packages/spec-test
 
+      # CoverLens has no database or auth; nothing app-specific is needed at
+      # build time (ALLOWED_ORIGINS and the checker key are read at runtime).
       - name: Build Next.js with OpenNext
         working-directory: ${{ env.APP_DIR }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          AUTH_URL: ${{ vars.APP_URL }}
-          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
         run: npm run build:open-next
 
       - name: Install CDK dependencies
         working-directory: ${{ env.CDK_DIR }}
         run: npm ci
 
+      # CDK reads these at synth time and bakes them into the Lambda env.
       - name: CDK deploy
         working-directory: ${{ env.CDK_DIR }}
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          AUTH_URL: ${{ vars.APP_URL }}
-          # insure-specific: the stack resolves the app from PLATFORM_DEMO_APP_PATH
-          # and bakes the checker key + origin allow-list into the Lambda env at
-          # synth time.
-          PLATFORM_DEMO_APP_PATH: ${{ env.APP_DIR }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CHECKER_MODEL: ${{ vars.CHECKER_MODEL }}
           ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
@@ -161,14 +157,20 @@ jobs:
 
       # The platform smoke script assumes an auth app (/api/health, redirect to
       # /login). This app is a public single page, so check what it actually
-      # exposes: the page returns 200 and the checker route rejects a GET.
+      # exposes: the page renders, the checker route rejects a GET, and the
+      # security headers are on.
       - name: Smoke test
         run: |
           URL="${{ steps.cdk.outputs.url }}"
-          root=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 15 "$URL/")
-          echo "GET / -> $root"
-          [ "$root" = "200" ] || { echo "::error::root did not return 200"; exit 1; }
+          html=$(curl -sS --max-time 15 "$URL/")
+          echo "$html" | grep -qi "coverlens" || { echo "::error::root page did not render CoverLens"; exit 1; }
+          echo "GET / renders the app"
           api=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 15 "$URL/api/check")
           echo "GET /api/check -> $api"
           case "$api" in 404|405) ;; *) echo "::error::/api/check unexpected status $api"; exit 1;; esac
+          headers=$(curl -sSI --max-time 15 "$URL/")
+          for h in "strict-transport-security" "x-content-type-options"; do
+            echo "$headers" | grep -iq "^$h:" || { echo "::error::missing security header $h"; exit 1; }
+          done
+          echo "Security headers present."
           echo "Smoke test passed."

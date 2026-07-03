@@ -1,11 +1,6 @@
 import { z } from "zod";
 import { runChecker } from "@/lib/insure/checker-graph";
-import {
-  clientId,
-  configuredOrigins,
-  isOriginAllowed,
-  rateOk,
-} from "@/lib/insure/security";
+import { clientId, configuredOrigins, isOriginAllowed, rateOk } from "@/lib/insure/security";
 
 export const runtime = "nodejs";
 // The grounding loop can run several model passes, so allow more headroom.

@@ -1,9 +1,11 @@
 # Infra
 
-AWS CDK in TypeScript. Two pieces:
+AWS CDK in TypeScript. What's here:
 
-- `cdk/constructs/` — reusable building blocks. Copy into each app's repo.
-- `iam/` — pre-canned IAM policies for the deploy user/role.
+- `cdk/insure/` — the live CDK app for CoverLens (`apps/insure`), one `InsureServerless` stack. See its README.
+- `cdk/_template/` — CDK package scaffold. Copy and rename per app; `cdk/insure/` was created this way.
+- `cdk/_setup/` — one-time stack that provisions the GitHub Actions OIDC deploy role.
+- `iam/` — pre-canned least-privilege IAM policy for the deploy role.
 
 ## Why no shared "base" stacks?
 
@@ -13,40 +15,37 @@ If you ever need shared resources (a global WAF, a shared observability stack, a
 
 ## Per-app CDK structure
 
-When you scaffold a new app:
+Each app gets its own copy of the scaffold, with the shared construct vendored in:
 
 ```
-apps/web/
-├── ... your Next.js app ...
+apps/insure/
+├── ... the Next.js app ...
 └── .open-next/                  # build output from `open-next build`
 
-infra/cdk/
-├── constructs/                  # copied from platform; shared building blocks
-│   ├── NextjsServerless.ts
-│   └── README.md
-└── app/                         # this app's CDK
-    ├── bin/app.ts
-    ├── lib/web-stack.ts
-    ├── package.json
-    ├── tsconfig.json
-    └── cdk.json
+infra/cdk/insure/
+├── bin/app.ts                   # stack id (CloudFormation stack name)
+├── lib/web-stack.ts             # app path, Lambda env vars, custom domain
+├── lib/constructs/NextjsServerless.ts   # vendored reusable construct
+├── package.json, tsconfig.json, cdk.json
+└── README.md
 ```
 
-The CDK code reads about ~5 lines per app:
+The stack itself reads as a few lines per app:
 
 ```ts
 new NextjsServerless(this, "Web", {
-  appPath: path.resolve(__dirname, "..", "..", "..", "..", "apps", "web"),
+  appPath: path.resolve(__dirname, "..", "..", "..", "..", "apps", "insure"),
   environment: {
-    DATABASE_URL: process.env.DATABASE_URL ?? "",
-    AUTH_SECRET: process.env.AUTH_SECRET ?? "",
-    AUTH_URL: process.env.AUTH_URL ?? "",
+    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS ?? "",
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
+    CHECKER_MODEL: process.env.CHECKER_MODEL ?? "",
   },
+  customDomain: { domainName: "coverlens.soonkeong.dev", certificateArn: "..." },
 });
 ```
 
 ## Deploy
 
-Apps inherit the `.github/workflows/deploy.yml` from this platform. Set the required GitHub secrets and variables, push to `main`, the workflow handles bootstrap → build → deploy → smoke test.
+Push to `main` runs `.github/workflows/deploy.yml`: OIDC-assume the deploy role, OpenNext build, `cdk deploy`, smoke test. The role comes from `cdk/_setup/` with the policy in `iam/cdk-deploy-policy.json`.
 
-See `docs/DEPLOY.md` for the full setup, including OIDC trust and the IAM policy in `infra/iam/cdk-deploy-policy.json`.
+See `docs/DEPLOY.md` for the full setup and the production gotchas the construct encodes.

@@ -3,9 +3,9 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { NextjsServerless } from "./constructs/NextjsServerless";
 
-// Default to the conventional `apps/web` location. Override via PLATFORM_DEMO_APP_PATH
-// so platform CI can point at `apps/_demo` for self-test without rewriting this file.
-const APP_REL = process.env.PLATFORM_DEMO_APP_PATH ?? "apps/web";
+// The app this stack deploys. CoverLens has no database or auth, so the only
+// runtime env vars are the checker key, model, and the origin allow-list.
+const APP_REL = "apps/insure";
 
 export class WebStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -14,9 +14,6 @@ export class WebStack extends cdk.Stack {
     new NextjsServerless(this, "Web", {
       appPath: path.resolve(__dirname, "..", "..", "..", "..", APP_REL),
       environment: {
-        DATABASE_URL: process.env.DATABASE_URL ?? "",
-        AUTH_SECRET: process.env.AUTH_SECRET ?? "",
-        AUTH_URL: process.env.AUTH_URL ?? "",
         // Same-origin guard for /api/check. When set, only these origins may
         // call the paid checker route; unset, the guard is off (local dev).
         ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS ?? "",

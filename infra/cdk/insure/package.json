@@ -1,10 +1,10 @@
 {
-  "name": "app-cdk",
+  "name": "insure-cdk",
   "version": "0.1.0",
   "private": true,
-  "description": "CDK scaffold for a Next.js + OpenNext app. Rename to your app and edit bin/app.ts.",
+  "description": "CDK app that deploys CoverLens (apps/insure) as Lambda + S3 + CloudFront at coverlens.soonkeong.dev.",
   "bin": {
-    "app-cdk": "bin/app.js"
+    "insure-cdk": "bin/app.js"
   },
   "scripts": {
     "build": "tsc",

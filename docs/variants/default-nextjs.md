@@ -4,17 +4,17 @@ This is the platform's happy path. Everything in the platform is designed for th
 
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| Framework | Next.js (App Router) + TypeScript strict |
-| Styling | Tailwind |
-| Database | Postgres (Neon for serverless connection pooling) |
-| Auth | Auth.js v5 (Credentials or OAuth, JWT sessions) |
-| Validation | Zod on every server action boundary |
-| Build adapter | OpenNext (`@opennextjs/aws`) |
-| Hosting | AWS Lambda (server) + S3 (static assets) + CloudFront (edge) |
-| IaC | AWS CDK |
-| CI/CD | GitHub Actions (provided in `.github/workflows/`) |
+| Layer         | Choice                                                       |
+| ------------- | ------------------------------------------------------------ |
+| Framework     | Next.js (App Router) + TypeScript strict                     |
+| Styling       | Tailwind                                                     |
+| Database      | Postgres (Neon for serverless connection pooling)            |
+| Auth          | Auth.js v5 (Credentials or OAuth, JWT sessions)              |
+| Validation    | Zod on every server action boundary                          |
+| Build adapter | OpenNext (`@opennextjs/aws`)                                 |
+| Hosting       | AWS Lambda (server) + S3 (static assets) + CloudFront (edge) |
+| IaC           | AWS CDK                                                      |
+| CI/CD         | GitHub Actions (provided in `.github/workflows/`)            |
 
 ## Scaffold
 
@@ -56,9 +56,9 @@ Write `infra/cdk/app/bin/app.ts` and `infra/cdk/app/lib/web-stack.ts` that insta
 
 If your app uses Postgres, the deploy workflow looks for two scripts in `apps/web/db/` and runs them in order on every deploy:
 
-| Script | When it runs | What it does |
-|---|---|---|
-| `db/migrate.ts` | Always, conditional on the file existing | Drizzle migrate. Applies pending schema changes before the new Lambda goes live. |
+| Script            | When it runs                             | What it does                                                                                                     |
+| ----------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `db/migrate.ts`   | Always, conditional on the file existing | Drizzle migrate. Applies pending schema changes before the new Lambda goes live.                                 |
 | `db/seed-demo.ts` | Always, conditional on the file existing | Idempotent reference/demo data. **Must not delete user rows.** Looks up by natural key, inserts only if missing. |
 
 Both are skipped silently if the file is absent, so non-DB apps incur no penalty.
@@ -101,7 +101,10 @@ async function main() {
   await pool.end();
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
 ```
 
 For synthetic historical activity (submissions, audit entries, etc.), anchor the deterministic timestamps to a fixed `DEMO_ANCHOR` constant rather than `Date.now()`:
@@ -123,14 +126,14 @@ If your app onboards real users (not a portfolio demo, not a sandbox), keep `db/
 
 The platform's `.github/workflows/deploy.yml` works as-is once you set these GitHub secrets and vars on the repo:
 
-| Setting | Type | Value |
-|---|---|---|
-| `AWS_DEPLOY_ROLE_ARN` | secret | OIDC role ARN |
-| `DATABASE_URL` | secret | Postgres connection string |
-| `AUTH_SECRET` | secret | `openssl rand -base64 32` output |
-| `AWS_REGION` | variable | e.g. `ap-southeast-1` |
-| `APP_URL` | variable | Your CloudFront URL or custom domain |
-| `ALLOWED_ORIGINS` | variable | CloudFront host + Lambda URL host, comma-separated |
+| Setting               | Type     | Value                                              |
+| --------------------- | -------- | -------------------------------------------------- |
+| `AWS_DEPLOY_ROLE_ARN` | secret   | OIDC role ARN                                      |
+| `DATABASE_URL`        | secret   | Postgres connection string                         |
+| `AUTH_SECRET`         | secret   | `openssl rand -base64 32` output                   |
+| `AWS_REGION`          | variable | e.g. `ap-southeast-1`                              |
+| `APP_URL`             | variable | Your CloudFront URL or custom domain               |
+| `ALLOWED_ORIGINS`     | variable | CloudFront host + Lambda URL host, comma-separated |
 
 The smoke test in `scripts/verify-deploy.sh` runs post-deploy and fails CI if any critical flow regresses.
 

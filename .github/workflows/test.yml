@@ -6,6 +6,12 @@ on:
   push:
     branches: [main]
 
+# pull-requests: write lets the coverage comment post on PRs, including
+# Dependabot PRs (whose token is read-only unless permissions are declared).
+permissions:
+  contents: read
+  pull-requests: write
+
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
@@ -17,7 +23,7 @@ jobs:
     env:
       NODE_ENV: test
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -31,7 +37,7 @@ jobs:
         working-directory: apps/insure
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
@@ -39,7 +45,7 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: apps/insure
       - name: Cache Next.js build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/insure/.next/cache
           key: nextjs-insure-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/insure/**/*.[jt]s', 'apps/insure/**/*.[jt]sx') }}
@@ -56,18 +62,44 @@ jobs:
           name: spec-coverage
           path: apps/insure/spec-coverage.md
           if-no-files-found: warn
+      # Upserts one marker-tagged comment per PR instead of stacking a new
+      # comment on every push. Never fails the gate: commenting is reporting,
+      # not verification, and some tokens (e.g. fork PRs) cannot write.
       - name: Comment coverage on PR
         if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
             const path = 'apps/insure/spec-coverage.md';
             if (!fs.existsSync(path)) return;
-            const body = fs.readFileSync(path, 'utf8');
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body
-            });
+            const marker = '<!-- spec-coverage-report -->';
+            const body = marker + '\n' + fs.readFileSync(path, 'utf8');
+            try {
+              const { data: comments } = await github.rest.issues.listComments({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100,
+              });
+              const existing = comments.find(
+                (c) => c.user?.type === 'Bot' && c.body?.startsWith(marker),
+              );
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  comment_id: existing.id,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body,
+                });
+              }
+            } catch (err) {
+              core.warning(`Could not post coverage comment: ${err.message}`);
+            }

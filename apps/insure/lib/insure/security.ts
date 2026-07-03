@@ -31,10 +31,7 @@ export function configuredOrigins(): string[] | null {
  * (local dev) everything is allowed; with one, a matching Origin is required,
  * so a cross-site call or a bare script with no Origin is rejected.
  */
-export function isOriginAllowed(
-  origin: string | null,
-  allowed: string[] | null,
-): boolean {
+export function isOriginAllowed(origin: string | null, allowed: string[] | null): boolean {
   if (allowed === null) return true;
   if (!origin) return false;
   return allowed.includes(origin);
@@ -68,6 +65,6 @@ export function rateOk(
 /** Identify the client from proxy headers, falling back to a shared bucket. */
 export function clientId(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]!.trim();
+  if (fwd) return fwd.split(",")[0].trim();
   return req.headers.get("x-real-ip") ?? "anonymous";
 }

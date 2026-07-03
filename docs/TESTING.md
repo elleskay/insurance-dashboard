@@ -19,19 +19,19 @@ CI workflow                      → runs all of the above, gates deploy
 ## Spec file format
 
 ```yaml
-app: <appname>          # required, kebab-case
-version: 1              # required, integer
+app: <appname> # required, kebab-case
+version: 1 # required, integer
 requirements:
-  - id: <APP>-<DOMAIN>-<NNN>   # required, unique, e.g. ARM-SUBMIT-004
-    title: One-line summary    # required, 5..200 chars
-    category: functional       # required: functional | ui | security | data | a11y
-    severity: high             # required: critical | high | medium | low
-    given: Precondition        # required, 3+ chars
-    when: Action               # required, 3+ chars
-    then: Expected outcome     # required, 3+ chars
-    tags: [auth, middleware]   # optional
-    depends_on: []             # optional, must reference other valid IDs
-    notes: Free-form notes     # optional
+  - id: <APP>-<DOMAIN>-<NNN> # required, unique, e.g. ARM-SUBMIT-004
+    title: One-line summary # required, 5..200 chars
+    category: functional # required: functional | ui | security | data | a11y
+    severity: high # required: critical | high | medium | low
+    given: Precondition # required, 3+ chars
+    when: Action # required, 3+ chars
+    then: Expected outcome # required, 3+ chars
+    tags: [auth, middleware] # optional
+    depends_on: [] # optional, must reference other valid IDs
+    notes: Free-form notes # optional
 ```
 
 The schema is enforced by zod. Unknown fields throw. Duplicate IDs throw. Invalid `depends_on` references throw.

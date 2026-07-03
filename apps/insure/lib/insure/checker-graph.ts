@@ -52,9 +52,7 @@ type CheckerStateType = typeof CheckerState.State;
 
 /** Model node: read the document and draft summary + findings, reusing the
  * app's AI SDK + Anthropic. On a revision it is told which quotes failed. */
-async function draftNode(
-  state: CheckerStateType,
-): Promise<Partial<CheckerStateType>> {
+async function draftNode(state: CheckerStateType): Promise<Partial<CheckerStateType>> {
   const { object } = await generateObject({
     model: anthropic(process.env.CHECKER_MODEL || "claude-sonnet-4-6"),
     schema: checkDraftSchema,

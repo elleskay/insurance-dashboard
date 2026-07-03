@@ -2,7 +2,7 @@ import { CHECK_ITEMS, type CheckItem, type PolicyCheckData } from "./types";
 
 type Found = Pick<CheckItem, "detail" | "quote" | "severity">;
 
-/** Build a full 8-item checklist from the found items, marking the rest not stated. */
+/** Build the full curated checklist from the found items, marking the rest not stated. */
 function checklist(found: Partial<Record<CheckItem["key"], Found>>): CheckItem[] {
   return CHECK_ITEMS.map((key) => {
     const f = found[key];
@@ -28,14 +28,18 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
       {
         benefit: "Death benefit",
         limit: "$750,000",
-        detail: "A lump sum of $750,000 is paid to your beneficiaries if you pass away during the policy term.",
-        quote: "a death benefit of $750,000 is payable on the death of the life assured during the term",
+        detail:
+          "A lump sum of $750,000 is paid to your beneficiaries if you pass away during the policy term.",
+        quote:
+          "a death benefit of $750,000 is payable on the death of the life assured during the term",
       },
       {
         benefit: "Total and permanent disability",
         limit: "$750,000",
-        detail: "The same $750,000 is paid if you become totally and permanently disabled before age 70.",
-        quote: "the total and permanent disability benefit of $750,000 is payable before the policy anniversary at age 70",
+        detail:
+          "The same $750,000 is paid if you become totally and permanently disabled before age 70.",
+        quote:
+          "the total and permanent disability benefit of $750,000 is payable before the policy anniversary at age 70",
       },
     ],
     definitions: [
@@ -58,13 +62,15 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
     premium: 720,
     checklist: checklist({
       "survival-period": {
-        detail: "The benefit is paid only if you survive at least 7 days after a covered diagnosis.",
+        detail:
+          "The benefit is paid only if you survive at least 7 days after a covered diagnosis.",
         quote: "a survival period of 7 days applies before any benefit becomes payable",
         severity: "watch",
       },
       exclusions: {
         detail: "No payout for death by suicide within the first policy year.",
-        quote: "no benefit is payable for death resulting from suicide within one year from the cover start date",
+        quote:
+          "no benefit is payable for death resulting from suicide within one year from the cover start date",
         severity: "watch",
       },
       "free-look": {
@@ -97,14 +103,17 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
       {
         benefit: "Outpatient cancer treatment",
         limit: "Up to 5x MediShield Life limit",
-        detail: "Approved outpatient cancer drug treatment is covered up to five times the MediShield Life limit.",
-        quote: "outpatient cancer drug treatment is covered up to 5 times the MediShield Life claim limit",
+        detail:
+          "Approved outpatient cancer drug treatment is covered up to five times the MediShield Life limit.",
+        quote:
+          "outpatient cancer drug treatment is covered up to 5 times the MediShield Life claim limit",
       },
       {
         benefit: "Pre- and post-hospitalisation",
         limit: "Up to 180 days",
         detail: "Related treatment before and after a hospital stay is covered for up to 180 days.",
-        quote: "pre-hospitalisation and post-hospitalisation treatment is covered for up to 180 days",
+        quote:
+          "pre-hospitalisation and post-hospitalisation treatment is covered for up to 180 days",
       },
     ],
     definitions: [
@@ -125,23 +134,28 @@ export const SAMPLE_CHECKS: PolicyCheckData[] = [
         severity: "watch",
       },
       "pre-existing": {
-        detail: "Conditions you already had before the policy started are excluded unless declared and accepted.",
-        quote: "pre-existing conditions are not covered unless specifically declared and accepted by us",
+        detail:
+          "Conditions you already had before the policy started are excluded unless declared and accepted.",
+        quote:
+          "pre-existing conditions are not covered unless specifically declared and accepted by us",
         severity: "caution",
       },
       deductible: {
-        detail: "You pay the first $3,500 of an eligible claim each policy year before the plan pays.",
+        detail:
+          "You pay the first $3,500 of an eligible claim each policy year before the plan pays.",
         quote: "a deductible of $3,500 applies per policy year before benefits are payable",
         severity: "caution",
       },
       "co-payment": {
-        detail: "A 5% co-payment applies after the deductible, capped at $3,000 a year on panel doctors.",
+        detail:
+          "A 5% co-payment applies after the deductible, capped at $3,000 a year on panel doctors.",
         quote: "the insured shall bear a co-payment of 5 percent of the eligible claim amount",
         severity: "caution",
       },
       "claim-limits": {
         detail: "Claims are subject to an annual limit and per-treatment sub-limits.",
-        quote: "benefits are subject to an annual claim limit and the sub-limits set out in the benefit schedule",
+        quote:
+          "benefits are subject to an annual claim limit and the sub-limits set out in the benefit schedule",
         severity: "watch",
       },
     }),

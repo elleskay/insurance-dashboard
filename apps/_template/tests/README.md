@@ -18,8 +18,8 @@ This app is tested against a YAML spec at `specs/<app>.yml`. Every requirement m
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test:spec": "npm run test:unit && npm run test:e2e && npm run test:coverage",
-    "test:coverage": "spec-coverage --spec specs/$npm_package_name.yml --coverage .spec-coverage/results.jsonl --out spec-coverage.md"
-  }
+    "test:coverage": "spec-coverage --spec specs/$npm_package_name.yml --coverage .spec-coverage/results.jsonl --out spec-coverage.md",
+  },
 }
 ```
 

@@ -13,12 +13,7 @@ import {
   type PolicyCheck,
   type PolicyCheckData,
 } from "@/lib/insure/types";
-import {
-  EXAMPLE_BILL,
-  SEVERITY_RANK,
-  computePayout,
-  topCatch,
-} from "@/lib/insure/checker";
+import { EXAMPLE_BILL, SEVERITY_RANK, computePayout, topCatch } from "@/lib/insure/checker";
 import { SAMPLE_CHECKS } from "@/lib/insure/sample";
 
 const STORAGE_KEY = "insure.checks.v1";
@@ -28,15 +23,11 @@ function sgd(n: number): string {
 }
 
 function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto)
-    return crypto.randomUUID();
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return "c" + Date.now() + Math.round(Math.random() * 1e6);
 }
 
-const SEVERITY: Record<
-  CheckSeverity,
-  { dot: string; pill: string; label: string }
-> = {
+const SEVERITY: Record<CheckSeverity, { dot: string; pill: string; label: string }> = {
   caution: { dot: "#b91c1c", pill: "bg-danger-soft text-danger", label: "Caution" },
   watch: { dot: "#b45309", pill: "bg-warn-soft text-warn", label: "Watch" },
   info: { dot: "#047857", pill: "bg-ok-soft text-ok", label: "Note" },
@@ -117,9 +108,9 @@ export function PolicyChecker() {
           <span className="block text-gradient">actually covers.</span>
         </h1>
         <p className="max-w-2xl text-lg text-muted-foreground">
-          Upload a policy PDF and we read it for you: a plain-language summary of
-          what you are getting, and the fine print to watch for. Every watch-out
-          is backed by a quote from your own document.
+          Upload a policy PDF and we read it for you: a plain-language summary of what you are
+          getting, and the fine print to watch for. Every watch-out is backed by a quote from your
+          own document.
         </p>
       </section>
 
@@ -133,12 +124,10 @@ export function PolicyChecker() {
           data-testid="empty-state"
           className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border bg-card/80 p-10 text-center backdrop-blur"
         >
-          <h2 className="text-lg font-semibold text-heading">
-            Your policy breakdown appears here
-          </h2>
+          <h2 className="text-lg font-semibold text-heading">Your policy breakdown appears here</h2>
           <p className="max-w-md text-muted-foreground">
-            Upload a policy PDF above and we will explain what it covers and flag
-            the fine print, with the exact wording from your document.
+            Upload a policy PDF above and we will explain what it covers and flag the fine print,
+            with the exact wording from your document.
           </p>
           <button
             type="button"
@@ -153,12 +142,9 @@ export function PolicyChecker() {
         <section className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-heading">
-                Your policies
-              </h2>
+              <h2 className="text-lg font-semibold text-heading">Your policies</h2>
               <p className="text-sm text-muted-foreground">
-                {checks.length} polic{checks.length > 1 ? "ies" : "y"} read from
-                your documents.
+                {checks.length} polic{checks.length > 1 ? "ies" : "y"} read from your documents.
               </p>
             </div>
             <button
@@ -179,13 +165,7 @@ export function PolicyChecker() {
   );
 }
 
-function PolicyCard({
-  check,
-  onRemove,
-}: {
-  check: PolicyCheck;
-  onRemove: () => void;
-}) {
+function PolicyCard({ check, onRemove }: { check: PolicyCheck; onRemove: () => void }) {
   const top = topCatch(check.checklist);
   // Show found watch-outs first, most serious at the top; not-stated after.
   const ordered = [...check.checklist].sort((a, b) => {
@@ -225,9 +205,7 @@ function PolicyCard({
               <p className="font-mono text-[0.65rem] uppercase tracking-wider text-muted-foreground">
                 Benefit
               </p>
-              <p className="text-base font-bold text-heading">
-                {sgd(check.benefitAmount)}
-              </p>
+              <p className="text-base font-bold text-heading">{sgd(check.benefitAmount)}</p>
             </div>
           ) : null}
           {check.premium !== undefined ? (
@@ -235,9 +213,7 @@ function PolicyCard({
               <p className="font-mono text-[0.65rem] uppercase tracking-wider text-muted-foreground">
                 Premium / yr
               </p>
-              <p className="text-base font-bold text-heading">
-                {sgd(check.premium)}
-              </p>
+              <p className="text-base font-bold text-heading">{sgd(check.premium)}</p>
             </div>
           ) : null}
           <button
@@ -258,8 +234,8 @@ function PolicyCard({
         >
           <span aria-hidden="true">!</span>
           <span>
-            Some details could not be matched to wording in your document and
-            were set aside. Confirm anything important against the policy itself.
+            Some details could not be matched to wording in your document and were set aside.
+            Confirm anything important against the policy itself.
           </span>
         </div>
       ) : null}
@@ -302,10 +278,7 @@ function PolicyCard({
 
       {/* The single headline catch */}
       {top ? (
-        <div
-          data-testid="top-catch"
-          className="rounded-2xl border border-border bg-surface/70 p-4"
-        >
+        <div data-testid="top-catch" className="rounded-2xl border border-border bg-surface/70 p-4">
           <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
             Most important catch
           </p>
@@ -315,9 +288,7 @@ function PolicyCard({
               className="h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ backgroundColor: SEVERITY[top.severity].dot }}
             />
-            <span className="font-semibold text-heading">
-              {CHECK_LABELS[top.key]}
-            </span>
+            <span className="font-semibold text-heading">{CHECK_LABELS[top.key]}</span>
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${SEVERITY[top.severity].pill}`}
             >
@@ -329,9 +300,7 @@ function PolicyCard({
       ) : null}
 
       {/* Will a claim pay out? Grounded deductible / co-pay worked example. */}
-      {check.payout?.deductible !== undefined ? (
-        <PayoutExplainer payout={check.payout} />
-      ) : null}
+      {check.payout?.deductible !== undefined ? <PayoutExplainer payout={check.payout} /> : null}
 
       {/* What to watch for */}
       <div>
@@ -384,9 +353,7 @@ function CoverageRow({ item }: { item: CoverageItem }) {
           {item.limit}
         </span>
       </div>
-      {item.detail ? (
-        <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p>
-      ) : null}
+      {item.detail ? <p className="mt-1 text-sm text-muted-foreground">{item.detail}</p> : null}
       {item.quote ? (
         <details data-testid="coverage-quote" className="mt-1.5 text-sm">
           <summary className="cursor-pointer font-medium text-primary">
@@ -418,10 +385,8 @@ function PayoutExplainer({ payout }: { payout: Payout }) {
         Will a claim pay out?
       </p>
       <p className="mt-1.5 text-sm text-foreground">
-        Bills at or below{" "}
-        <span className="font-semibold text-heading">{sgd(deductible)}</span> (your
-        deductible) are fully self-paid. This is the most common reason a claim
-        does not pay.
+        Bills at or below <span className="font-semibold text-heading">{sgd(deductible)}</span>{" "}
+        (your deductible) are fully self-paid. This is the most common reason a claim does not pay.
         {payout.coPayPercent !== undefined ? (
           <>
             {" "}
@@ -480,9 +445,7 @@ function ChecklistRow({ item }: { item: CheckItem }) {
           {CHECK_LABELS[item.key]}
         </span>
         {found ? (
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${sev.pill}`}
-          >
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${sev.pill}`}>
             {sev.label}
           </span>
         ) : (

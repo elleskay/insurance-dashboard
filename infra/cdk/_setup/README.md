@@ -20,6 +20,7 @@ After this stack exists, the deploy workflow can assume the role via OIDC. No lo
 ## Prerequisites
 
 You need AWS credentials that can:
+
 - Create an IAM role
 - Read the existing OIDC provider (or create one, if missing — see Caveats)
 - Run CloudFormation
@@ -38,12 +39,14 @@ The role is locked to the named repo; another repo on the same OIDC provider can
 ## Caveats
 
 - **OIDC provider must already exist** in the account. AWS only allows one per issuer (`token.actions.githubusercontent.com`). The stack uses `fromOpenIdConnectProviderArn` rather than creating it, which assumes it's there. If you're on a fresh account, create the provider once via CLI:
+
   ```bash
   aws iam create-open-id-connect-provider \
     --url https://token.actions.githubusercontent.com \
     --client-id-list sts.amazonaws.com \
     --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
   ```
+
   Then run this stack. (A future version of this stack could provision the provider conditionally.)
 
 - **The role's policy is `cdk-deploy` from `infra/iam/cdk-deploy-policy.json`**, which is permissive (`s3:*`, `lambda:*`, `cloudfront:*`). Fine for portfolio scale; tighten resource ARNs for production.

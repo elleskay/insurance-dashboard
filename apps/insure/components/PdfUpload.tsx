@@ -36,9 +36,7 @@ async function readPdfText(file: File): Promise<string> {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
     text +=
-      content.items
-        .map((it) => ("str" in it ? (it as { str: string }).str : ""))
-        .join(" ") + " ";
+      content.items.map((it) => ("str" in it ? (it as { str: string }).str : "")).join(" ") + " ";
   }
   return text;
 }
@@ -65,7 +63,8 @@ async function checkViaApi(text: string): Promise<PolicyCheckData[]> {
   }
   if (!res.ok) {
     if (res.status === 503) throw new Error("the checker is not configured on this deployment.");
-    if (res.status === 429) throw new Error("too many requests right now. Wait a moment and try again.");
+    if (res.status === 429)
+      throw new Error("too many requests right now. Wait a moment and try again.");
     if (res.status === 502 || res.status === 504)
       throw new Error("the document took too long to read. Try a smaller or simpler PDF.");
     throw new Error("we could not read this document. Try a different PDF.");
@@ -74,11 +73,7 @@ async function checkViaApi(text: string): Promise<PolicyCheckData[]> {
   return Array.isArray(data.policies) ? data.policies : [];
 }
 
-export function PdfUpload({
-  onChecked,
-}: {
-  onChecked: (policies: PolicyCheckData[]) => void;
-}) {
+export function PdfUpload({ onChecked }: { onChecked: (policies: PolicyCheckData[]) => void }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [problems, setProblems] = useState<string[]>([]);
@@ -97,10 +92,7 @@ export function PdfUpload({
     }
     const start = Date.now();
     const tick = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 250);
-    const advance = setInterval(
-      () => setStage((s) => Math.min(s + 1, STAGES.length - 1)),
-      5_000,
-    );
+    const advance = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 5_000);
     return () => {
       clearInterval(tick);
       clearInterval(advance);
@@ -123,7 +115,9 @@ export function PdfUpload({
       try {
         const text = await readPdfText(file);
         if (text.replace(/\s+/g, "").length < 80) {
-          found.push(`${file.name}: no readable text found (it may be a scanned image). Try a text-based PDF.`);
+          found.push(
+            `${file.name}: no readable text found (it may be a scanned image). Try a text-based PDF.`,
+          );
           continue;
         }
         const policies = await checkViaApi(text);
@@ -193,8 +187,7 @@ export function PdfUpload({
           {busy ? "Reading your documents..." : "Drop your policy PDFs here"}
         </span>
         <span className="text-sm text-muted-foreground">
-          or click to choose files. The checker reads each one and explains it in
-          plain language.
+          or click to choose files. The checker reads each one and explains it in plain language.
         </span>
         <input
           id="pdf-input"
@@ -226,7 +219,10 @@ export function PdfUpload({
               />
               {STAGES[stage]}
             </span>
-            <span data-testid="check-eta" className="shrink-0 font-mono text-xs text-muted-foreground">
+            <span
+              data-testid="check-eta"
+              className="shrink-0 font-mono text-xs text-muted-foreground"
+            >
               {elapsed}s elapsed
               {remaining > 0 ? ` - about ${remaining}s left` : " - almost done"}
             </span>
@@ -241,10 +237,9 @@ export function PdfUpload({
       ) : null}
 
       <p data-testid="privacy-note" className="text-sm text-muted-foreground">
-        The text from your document is read in your browser and then sent to an
-        AI service to read your policy and surface the fine print. We do not
-        store your documents. Avoid uploading anything you are not comfortable
-        sharing with an AI service.
+        The text from your document is read in your browser and then sent to an AI service to read
+        your policy and surface the fine print. We do not store your documents. Avoid uploading
+        anything you are not comfortable sharing with an AI service.
       </p>
 
       {status ? (

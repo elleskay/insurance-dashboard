@@ -39,90 +39,88 @@ function draftPolicy(findings: DraftPolicy["findings"]): DraftPolicy {
 }
 
 test("[INSURE-CHECK-001] A finding is grounded only if its quote appears in the document", () => {
-    // One finding quotes real wording from the document; the other invents an
-    // exclusion that does not appear anywhere in the source.
-    const policy = draftPolicy([
-      {
-        key: "waiting-period",
-        detail: "Critical illness cover begins after 90 days.",
-        quote: "a waiting period of 90 days applies to critical illness",
-        severity: "caution",
-      },
-      {
-        key: "exclusions",
-        detail: "Sports injuries are excluded.",
-        quote: "injuries from any sporting activity are not covered",
-        severity: "watch",
-      },
-    ]);
+  // One finding quotes real wording from the document; the other invents an
+  // exclusion that does not appear anywhere in the source.
+  const policy = draftPolicy([
+    {
+      key: "waiting-period",
+      detail: "Critical illness cover begins after 90 days.",
+      quote: "a waiting period of 90 days applies to critical illness",
+      severity: "caution",
+    },
+    {
+      key: "exclusions",
+      detail: "Sports injuries are excluded.",
+      quote: "injuries from any sporting activity are not covered",
+      severity: "watch",
+    },
+  ]);
 
-    const issues = verifyGrounding([policy], SOURCE);
+  const issues = verifyGrounding([policy], SOURCE);
 
-    // Exactly the invented finding is flagged; the grounded one passes.
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ policyIndex: 0, key: "exclusions" });
+  // Exactly the invented finding is flagged; the grounded one passes.
+  expect(issues).toHaveLength(1);
+  expect(issues[0]).toMatchObject({ policyIndex: 0, key: "exclusions" });
 });
 
 test("[INSURE-CHECK-002] Ungrounded drafts are revised then demoted to not stated and flagged for review", () => {
-    const policy = draftPolicy([
-      {
-        key: "exclusions",
-        detail: "Sports injuries are excluded.",
-        quote: "injuries from any sporting activity are not covered",
-        severity: "watch",
-      },
-    ]);
-    const issues = verifyGrounding([policy], SOURCE);
-    expect(issues.length).toBeGreaterThan(0);
+  const policy = draftPolicy([
+    {
+      key: "exclusions",
+      detail: "Sports injuries are excluded.",
+      quote: "injuries from any sporting activity are not covered",
+      severity: "watch",
+    },
+  ]);
+  const issues = verifyGrounding([policy], SOURCE);
+  expect(issues.length).toBeGreaterThan(0);
 
-    // While issues remain and we are under the cap, the graph re-drafts.
-    expect(routeAfterVerify(issues, 1)).toBe("draft");
-    // At the cap it gives up revising and finalises.
-    expect(routeAfterVerify(issues, MAX_DRAFTS)).toBe("finalize");
-    // No issues means finalise regardless of attempts.
-    expect(routeAfterVerify([], 1)).toBe("finalize");
+  // While issues remain and we are under the cap, the graph re-drafts.
+  expect(routeAfterVerify(issues, 1)).toBe("draft");
+  // At the cap it gives up revising and finalises.
+  expect(routeAfterVerify(issues, MAX_DRAFTS)).toBe("finalize");
+  // No issues means finalise regardless of attempts.
+  expect(routeAfterVerify([], 1)).toBe("finalize");
 
-    // Finalising demotes the unquotable finding and flags the result for
-    // review, rather than surfacing the invented exclusion.
-    const result = summarize([policy], issues, SOURCE);
-    expect(result.needsReview).toBe(true);
-    const exclusions = result.policies[0].checklist.find(
-      (i) => i.key === "exclusions",
-    );
-    expect(exclusions?.status).toBe("not-stated");
-    expect(result.policies[0].needsReview).toBe(true);
+  // Finalising demotes the unquotable finding and flags the result for
+  // review, rather than surfacing the invented exclusion.
+  const result = summarize([policy], issues, SOURCE);
+  expect(result.needsReview).toBe(true);
+  const exclusions = result.policies[0].checklist.find((i) => i.key === "exclusions");
+  expect(exclusions?.status).toBe("not-stated");
+  expect(result.policies[0].needsReview).toBe(true);
 });
 
 test("[INSURE-CHECK-003] Every checked policy reports the full curated checklist", () => {
-    // The model only returned two of the curated items.
-    const policy = draftPolicy([
-      {
-        key: "waiting-period",
-        detail: "90-day wait for critical illness.",
-        quote: "a waiting period of 90 days applies to critical illness",
-        severity: "caution",
-      },
-      {
-        key: "free-look",
-        detail: "14-day free-look.",
-        quote: "you may cancel this policy within 14 days of receiving it",
-        severity: "info",
-      },
-    ]);
+  // The model only returned two of the curated items.
+  const policy = draftPolicy([
+    {
+      key: "waiting-period",
+      detail: "90-day wait for critical illness.",
+      quote: "a waiting period of 90 days applies to critical illness",
+      severity: "caution",
+    },
+    {
+      key: "free-look",
+      detail: "14-day free-look.",
+      quote: "you may cancel this policy within 14 days of receiving it",
+      severity: "info",
+    },
+  ]);
 
-    const { policies } = summarize([policy], [], SOURCE);
-    const checklist = policies[0].checklist;
+  const { policies } = summarize([policy], [], SOURCE);
+  const checklist = policies[0].checklist;
 
-    // Every curated item is present, in order, with a status.
-    expect(checklist.map((i) => i.key)).toEqual([...CHECK_ITEMS]);
-    for (const item of checklist) {
-      expect(["found", "not-stated"]).toContain(item.status);
-    }
+  // Every curated item is present, in order, with a status.
+  expect(checklist.map((i) => i.key)).toEqual([...CHECK_ITEMS]);
+  for (const item of checklist) {
+    expect(["found", "not-stated"]).toContain(item.status);
+  }
 
-    // The two quoted items are found; an unmentioned item is not stated.
-    expect(checklist.find((i) => i.key === "waiting-period")?.status).toBe("found");
-    expect(checklist.find((i) => i.key === "free-look")?.status).toBe("found");
-    expect(checklist.find((i) => i.key === "co-payment")?.status).toBe("not-stated");
+  // The two quoted items are found; an unmentioned item is not stated.
+  expect(checklist.find((i) => i.key === "waiting-period")?.status).toBe("found");
+  expect(checklist.find((i) => i.key === "free-look")?.status).toBe("found");
+  expect(checklist.find((i) => i.key === "co-payment")?.status).toBe("not-stated");
 });
 
 function item(
@@ -201,9 +199,7 @@ test("[INSURE-DEFINE-001] Each key definition is grounded in the policy wording"
 
   const issues = verifyGrounding([policy], source);
   expect(issues.map((i) => i.key)).toContain("definition:Critical illness");
-  expect(issues.map((i) => i.key)).not.toContain(
-    "definition:Total and permanent disability",
-  );
+  expect(issues.map((i) => i.key)).not.toContain("definition:Total and permanent disability");
 
   const { policies, needsReview } = summarize([policy], issues, source);
   expect(policies[0].definitions).toHaveLength(1);
