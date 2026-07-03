@@ -2,7 +2,6 @@
 
 > A system design breakdown of CoverLens, an AI checker that reads a Singapore insurance policy PDF and surfaces, in plain language, what it covers and the fine print that decides a claim. Every finding is backed by a verbatim quote from the document.
 >
-> **Live demo** at https://coverlens.soonkeong.dev
 
 ![CoverLens: upload a policy PDF, get a plain-language breakdown](docs/screenshots/overview.png)
 
