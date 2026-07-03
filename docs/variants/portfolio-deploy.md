@@ -10,13 +10,13 @@ If you ever onboard real users, switch to the [`default-nextjs`](./default-nextj
 
 ## What changes vs default-nextjs
 
-| Concern | default-nextjs | portfolio-deploy |
-|---|---|---|
-| Goal | Empty workspace ready for real teams | Populated demo telling a story |
-| `db/seed-demo.ts` scope | Reference data only (admin user, lookup tables) | Reference data + 30 days of synthetic activity (submissions, issues, audit, skips, varied inventory) |
-| Synthetic activity | None | Deterministic, anchored to a stable `DEMO_ANCHOR` date so reruns are no-ops |
-| When to refresh demo data | Never (demo stays empty) | Bump `DEMO_ANCHOR` in `seed-demo.ts`, push |
-| Auth invite codes | Generated per real user onboarding | Pre-generated for reviewer self-onboard from any device |
+| Concern                   | default-nextjs                                  | portfolio-deploy                                                                                     |
+| ------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Goal                      | Empty workspace ready for real teams            | Populated demo telling a story                                                                       |
+| `db/seed-demo.ts` scope   | Reference data only (admin user, lookup tables) | Reference data + 30 days of synthetic activity (submissions, issues, audit, skips, varied inventory) |
+| Synthetic activity        | None                                            | Deterministic, anchored to a stable `DEMO_ANCHOR` date so reruns are no-ops                          |
+| When to refresh demo data | Never (demo stays empty)                        | Bump `DEMO_ANCHOR` in `seed-demo.ts`, push                                                           |
+| Auth invite codes         | Generated per real user onboarding              | Pre-generated for reviewer self-onboard from any device                                              |
 
 ## The pattern
 
@@ -61,13 +61,13 @@ Key points:
 
 Aim for the dashboard chart to have shape, not for a synthetic LinkedIn feed. Empirically for the armoury demo:
 
-| Volume | Why |
-|---|---|
-| ~80 submissions over 30 days | Per-template avg scores render; chart has green/orange split visible |
-| 3-5 open issues across severities, 6-8 resolved | Severity ladder visible, resolution flow has examples |
-| 10 audit log entries | Audit log page is non-empty; covers template/invite/inventory action types |
-| 3 skipped checks | Skip/unskip feature has historical evidence |
-| 6-10 inventory items, 2 low-stock, 2 expiring within 7 days | Pulse stat cards non-zero, expiring-soon icon triggers |
+| Volume                                                      | Why                                                                        |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| ~80 submissions over 30 days                                | Per-template avg scores render; chart has green/orange split visible       |
+| 3-5 open issues across severities, 6-8 resolved             | Severity ladder visible, resolution flow has examples                      |
+| 10 audit log entries                                        | Audit log page is non-empty; covers template/invite/inventory action types |
+| 3 skipped checks                                            | Skip/unskip feature has historical evidence                                |
+| 6-10 inventory items, 2 low-stock, 2 expiring within 7 days | Pulse stat cards non-zero, expiring-soon icon triggers                     |
 
 Don't pad beyond this. Synthetic data that's too perfect is more suspicious to a reviewer than minimal data.
 

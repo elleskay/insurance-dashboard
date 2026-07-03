@@ -1,6 +1,8 @@
 # Setup checklist
 
-Follow in order on a fresh clone. Skipping steps will bite you later.
+Platform reference: follow in order when standing up a **new** app repo from the template. Skipping steps will bite you later.
+
+For **this repo** the checklist is already done: the app is `apps/insure` (not `apps/web`), the CDK package is `infra/cdk/insure`, the OIDC role and GitHub secrets/variables are configured, and `deploy.yml` is tailored to CoverLens (no database, so the migrate/seed steps were removed; restore them from the template for a DB-backed app).
 
 ## 1. Clone the template
 

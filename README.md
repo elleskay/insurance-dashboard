@@ -4,6 +4,8 @@
 >
 > **Live demo** at https://coverlens.soonkeong.dev
 
+![CoverLens: upload a policy PDF, get a plain-language breakdown](docs/screenshots/overview.png)
+
 ---
 
 ## Understanding the Problem
@@ -27,7 +29,7 @@ Out of scope: user accounts, server-side storage of documents or history, and fi
 
 - The system should be grounded, with 100 percent of shown findings backed by a verbatim quote and anything unquotable dropped. This is safety-critical and drives the core design.
 - The system should protect privacy, storing documents nowhere, with the only persistence being the user's own browser.
-- The system should return a check within a few seconds for a typical policy.
+- The system should keep the wait honest: a typical policy takes tens of seconds to read (it is a multi-pass model extraction), so the UI shows staged progress with an elapsed and remaining estimate rather than a spinner.
 - The system should keep a public, unauthenticated, paid endpoint within a bounded number of model calls per minute per caller.
 - The system should be deterministically testable despite a non-deterministic model in the loop.
 
@@ -41,7 +43,7 @@ CoverLens is heavy on reading text and light on writing data. The output is deri
 
 ### Defining the Core Entities
 
-There is no server database. This is the client-side domain model, built by the checker at request time and held in browser state.
+There is no server database. This is the client-side domain model, built by the checker at request time and held in browser state (persisted to `localStorage` only).
 
 - **PolicyCheck**, one checked policy, holding insurer, name, category, and summary.
 - **CoverageItem**, one benefit, holding the benefit, its limit, a detail, and the quote it was drawn from.
@@ -51,7 +53,7 @@ There is no server database. This is the client-side domain model, built by the 
 
 ### API or System Interface
 
-One model-backed endpoint, plus an in-browser parse step that keeps the raw file off the network as a binary. The browser reads the PDF to text with pdfjs-dist and posts only the extracted text. Check endpoint. It takes that extracted policy text, runs the grounded LangGraph check that maps the document into entities, and returns a quote-backed breakdown (the CheckResult), where every coverage figure, definition, and checklist line is pinned to a verbatim quote from the source. POST because each call creates a new check result rather than reading something cacheable.
+One model-backed endpoint, plus an in-browser parse step that keeps the raw file off the network as a binary. The browser reads the PDF to text with pdfjs-dist and posts only the extracted text (capped at 60k characters to bound cost and latency). Check endpoint. It takes that extracted policy text, runs the grounded LangGraph check that maps the document into entities, and returns a quote-backed breakdown (the CheckResult), where every coverage figure, definition, and checklist line is pinned to a verbatim quote from the source. POST because each call creates a new check result rather than reading something cacheable.
 
 ```
 POST /api/check -> CheckResult
@@ -70,10 +72,24 @@ The extracted `text` is the only thing the client sends, never a verdict or a po
       "name": "GREAT TermLife",
       "category": "life",
       "summary": "Plain-language summary of the policy.",
-      "coverage":    [{ "benefit": "Death benefit", "limit": "SGD 500,000", "quote": "verbatim from the document" }],
-      "definitions": [{ "term": "Total and Permanent Disability", "definition": "...", "quote": "verbatim from the document" }],
-      "checklist":   [{ "key": "survival-period", "status": "found", "severity": "caution", "quote": "..." },
-                      { "key": "pre-existing", "status": "not-stated" }],
+      "coverage": [
+        {
+          "benefit": "Death benefit",
+          "limit": "SGD 500,000",
+          "quote": "verbatim from the document"
+        }
+      ],
+      "definitions": [
+        {
+          "term": "Total and Permanent Disability",
+          "definition": "...",
+          "quote": "verbatim from the document"
+        }
+      ],
+      "checklist": [
+        { "key": "survival-period", "status": "found", "severity": "caution", "quote": "..." },
+        { "key": "pre-existing", "status": "not-stated" }
+      ],
       "payout": { "deductible": 3500, "coPayPercent": 10, "coPayCap": 3000 }
     }
   ],
@@ -97,14 +113,9 @@ We start with the read path: parse in the browser, post only the text, pass the 
 
 ```mermaid
 flowchart LR
-  Browser["Browser<br/>- reads PDF to text (pdfjs-dist)<br/>- posts only the text<br/>- renders the breakdown"]
-  API["POST /api/check<br/>- receives extracted text<br/>- returns CheckResult"]
-  Guard["Origin allow-list + rate limit<br/>- reject cross-site callers<br/>- bound calls per minute"]
-  Checker["LangGraph checker<br/>- turns text into entities"]
-  Browser -->|"POST /api/check"| API
-  API -->|guard| Guard
-  Guard -->|pass| Checker
-  Checker -->|"breakdown"| Browser
+  Browser["Browser<br/>(pdfjs-dist reads PDF to text)"] -->|"POST /api/check { text }"| Route["/api/check route.ts<br/>POST()"]
+  Route -->|"isOriginAllowed() + rateOk()"| Guard["security.ts<br/>(origin allow-list + rate limit)"]
+  Guard -->|"runChecker(text)"| Checker["checker-graph.ts<br/>runChecker()"]
 ```
 
 ### 2) The system returns a structured breakdown of the policy
@@ -115,18 +126,8 @@ We open the checker up: a drafter node produces the entities under a schema, so 
 
 ```mermaid
 flowchart LR
-  Browser["Browser<br/>- reads PDF to text (pdfjs-dist)<br/>- posts only the text<br/>- renders the breakdown"]
-  API["POST /api/check<br/>- receives extracted text<br/>- returns CheckResult"]
-  Guard["Origin allow-list + rate limit<br/>- reject cross-site callers<br/>- bound calls per minute"]
-  Checker["LangGraph checker<br/>- turns text into entities"]
-  Draft["Drafter<br/>- generateObject with a Zod schema<br/>- enforces output shape"]
-  Entities["Breakdown entities<br/>- summary, coverage, definitions<br/>- checklist, payout"]
-  Browser -->|"POST /api/check"| API
-  API -->|guard| Guard
-  Guard -->|pass| Checker
-  Checker -->|run| Draft
-  Draft -->|"schema-checked entities"| Entities
-  Entities -->|"breakdown"| Browser
+  Checker["checker-graph.ts<br/>runChecker()"] -->|"compiled.invoke()"| Drafter["drafter node<br/>draftNode()"]
+  Drafter -->|"generateObject({ schema: checkDraftSchema })"| Entities["DraftPolicy[]<br/>(summary, coverage, definitions,<br/>checklist, payout)"]
 ```
 
 ### 3) Every finding is traceable to a verbatim quote
@@ -137,22 +138,9 @@ We add the grounding step that checks each finding against the source text, so n
 
 ```mermaid
 flowchart LR
-  Browser["Browser<br/>- reads PDF to text (pdfjs-dist)<br/>- posts only the text<br/>- renders each finding with its quote"]
-  API["POST /api/check<br/>- receives extracted text<br/>- returns CheckResult"]
-  Guard["Origin allow-list + rate limit<br/>- reject cross-site callers<br/>- bound calls per minute"]
-  Checker["LangGraph checker<br/>- turns text into entities"]
-  Draft["Drafter<br/>- generateObject with a Zod schema<br/>- cites a quote per finding"]
-  Ground["Grounding step<br/>- verify each finding against source text<br/>- drop anything unquotable"]
-  Entities["Breakdown entities<br/>- summary, coverage, definitions<br/>- checklist, payout"]
-  Anthropic{"Anthropic"}
-  Browser -->|"POST /api/check"| API
-  API -->|guard| Guard
-  Guard -->|pass| Checker
-  Checker -->|run| Draft
-  Draft -->|generate| Anthropic
-  Draft -->|"drafted findings"| Ground
-  Ground -->|"quote-backed entities"| Entities
-  Entities -->|"breakdown"| Browser
+  Drafter["drafter node<br/>draftNode()"] -->|"generateObject()"| Anthropic{"Anthropic (claude-sonnet)"}
+  Drafter -->|"verifyGrounding(draft, source)"| Verify["verify node<br/>verifyNode()"]
+  Verify -->|"summarize() then return"| Findings["finalize node<br/>finalizeNode()<br/>(quote-backed findings)"]
 ```
 
 ---
@@ -167,28 +155,29 @@ A single model call cannot guarantee this, because models paraphrase and invent.
 <summary><strong>Bad solution: trust one model call</strong></summary>
 
 Prompt the model for the findings and render whatever comes back. One call, fast and simple. Nothing stops it from inventing an exclusion or a limit that is not in the policy, the exact failure that makes the product worse than useless.
+
 </details>
 
 <details>
 <summary><strong>Good solution: ask the model to cite and self-check</strong></summary>
 
 Require a verbatim quote on each finding, and ask the model in the same prompt to drop anything it cannot quote. This catches obvious inventions, but it still trusts the model to police itself, and a model that hallucinated a finding will happily hallucinate a matching quote, so the guarantee stays soft.
+
 </details>
 
 <details>
 <summary><strong>Great solution: a deterministic verify loop</strong></summary>
 
-Separate drafting from verifying. A model node drafts findings with cited quotes, then a deterministic, model-free node checks that each quote appears verbatim in the document text. Anything that fails is re-drafted up to a cap, then demoted to not stated rather than shown. The guarantee comes from code, not from trusting the model, which is also why it is unit-testable without a model. This is what CoverLens runs.
+Separate drafting from verifying. A model node drafts findings with cited quotes, then a deterministic, model-free node checks that each quote appears verbatim in the document text (normalised for the spacing and punctuation noise PDF extraction introduces). Anything that fails is re-drafted up to a cap, then demoted to not stated rather than shown. The guarantee comes from code, not from trusting the model, which is also why it is unit-testable without a model. This is what CoverLens runs.
 
 ```mermaid
 flowchart LR
-  Draft["Drafter<br/>- draft summary and findings<br/>- cite a quote per finding"]
-  Verify["Grounding step<br/>- check quote appears verbatim in source text<br/>- re-draft up to a cap"]
-  Final["Finalize<br/>- demote any unquotable finding to not stated<br/>- return quote-backed result"]
-  Draft -->|"drafted findings"| Verify
-  Verify -->|"no, still under the draft cap"| Draft
-  Verify -->|"yes, or cap reached"| Final
+  Drafter["drafter node<br/>draftNode() -> generateObject()"] -->|"verifyGrounding()"| Verify["verify node<br/>verifyNode()"]
+  Verify -->|"routeAfterVerify()"| Route{"issues and attempts < MAX_DRAFTS"}
+  Route -->|"draft (re-draft, buildCheckPrompt with priorIssues)"| Drafter
+  Route -->|"finalize"| Final["finalize node<br/>finalizeNode() -> summarize()<br/>(demote unquotable to not-stated)"]
 ```
+
 </details>
 
 ### 2) How do we handle sensitive documents without becoming a breach liability?
@@ -199,18 +188,21 @@ Insurance policies are sensitive financial documents, so where they rest matters
 <summary><strong>Bad solution: store the documents for history and analytics</strong></summary>
 
 Persist every uploaded document in a database so users get history and you get analytics. Convenient, but now you hold a pile of sensitive financial documents, which is a breach target and a compliance burden.
+
 </details>
 
 <details>
 <summary><strong>Good solution: store only extracted text, encrypted, short retention</strong></summary>
 
 Keep just the extracted text, encrypted at rest, and delete it after a short window. A smaller surface, but you still own sensitive data and the retention window is still a risk to manage and explain.
+
 </details>
 
 <details>
 <summary><strong>Great solution: store nothing server-side</strong></summary>
 
 The text is sent to the model to be read, then discarded, and results live only in the browser's localStorage. There is no datastore to breach. The trade-off is no cross-device history and the model provider does see the text, which is disclosed in the app. A deliberate quality-over-features choice.
+
 </details>
 
 ### 3) How do we protect a public, unauthenticated, paid endpoint?
@@ -221,18 +213,21 @@ The check endpoint is unauthenticated and every call spends money on model token
 <summary><strong>Bad solution: leave it open</strong></summary>
 
 Ship with no guard. Any script can call it in a loop and run up the bill, and a cross-site page can use it freely.
+
 </details>
 
 <details>
 <summary><strong>Good solution: origin allow-list and an in-memory rate limit</strong></summary>
 
-Reject cross-site and origin-less callers with an allow-list, and add a best-effort sliding-window rate limit on the route. Stops casual abuse, and is what the app ships. The limit only sees one Lambda instance, so under concurrency it is not a hard cap.
+Reject cross-site and origin-less callers with an allow-list, and add a best-effort sliding-window rate limit on the route (20 calls per minute per client). Stops casual abuse, and is what the app ships. The limit only sees one Lambda instance, so under concurrency it is not a hard cap.
+
 </details>
 
 <details>
 <summary><strong>Great solution: a shared limiter and a per-user quota</strong></summary>
 
 Move the counter to Upstash Redis so the limit holds across every instance at once, and add a per-user quota so one caller cannot drain the budget. The path before wide public exposure.
+
 </details>
 
 ### 4) How do we keep model cost bounded as usage grows?
@@ -243,18 +238,21 @@ The model call is the real cost, so the question is how to avoid paying for it m
 <summary><strong>Bad solution: every request hits the model</strong></summary>
 
 Run the full check on every upload with no caching. Cost grows linearly with traffic, and re-checking the same policy pays again every time.
+
 </details>
 
 <details>
 <summary><strong>Good solution: cheaper model for short documents</strong></summary>
 
 Route short documents to a cheaper model and cap request size. Trims the average cost, but identical uploads are still re-processed from scratch.
+
 </details>
 
 <details>
 <summary><strong>Great solution: a content cache and a queue for large documents</strong></summary>
 
 Cache results keyed on a document fingerprint so re-checking the same policy is free, queue very large documents so the request path stays fast, and log per-call latency and cost so spend is visible. Scale-to-zero Lambda already handles concurrency, so this is about cost, not servers.
+
 </details>
 
 ### 5) How do we test a non-deterministic, model-backed system in CI?
@@ -265,18 +263,21 @@ The grounding rule must be proven on every build, but the model is non-determini
 <summary><strong>Bad solution: call the real model in tests</strong></summary>
 
 Hit the live model in the test suite. Flaky, slow, costs money on every run, and a model update can silently turn the build red for no code reason.
+
 </details>
 
 <details>
 <summary><strong>Good solution: record and replay fixtures</strong></summary>
 
 Record real model responses once and replay them. Deterministic and offline, but the fixtures drift from reality over time and must be re-recorded to stay honest.
+
 </details>
 
 <details>
 <summary><strong>Great solution: deterministic grounding plus a stubbed model</strong></summary>
 
-The grounding logic is deterministic and model-free, so it is unit-tested directly on Vitest. The Playwright e2e stubs the model via page.route so it is offline. A spec maps each of the 28 requirements to a passing test, and the gate fails the build if any is uncovered. The one thing that must be correct, grounding, is tested without a model at all.
+The grounding logic is deterministic and model-free, so it is unit-tested directly on Vitest. The Playwright e2e stubs the model via page.route so it is offline. A spec maps each of the 28 requirements in `apps/insure/specs/insure.yml` to a passing test, and the gate fails the build if any is uncovered. The one thing that must be correct, grounding, is tested without a model at all.
+
 </details>
 
 ---
@@ -287,45 +288,73 @@ Pulling the high-level design and the deep dives together, here is the whole sys
 
 ```mermaid
 flowchart LR
-  Browser["Browser<br/>- reads PDF to text (pdfjs-dist)<br/>- posts only the text"]
-  CloudFront["CloudFront<br/>- edge entry point<br/>- routes static vs dynamic"]
-  S3["S3 assets<br/>- static files and pdf.js worker"]
-  Lambda["Lambda (Next.js via OpenNext)<br/>- runs the app and the API route"]
-  API["POST /api/check<br/>- receives extracted text<br/>- returns CheckResult"]
-  Guard["Origin allow-list + rate limit<br/>- reject cross-site callers<br/>- bound calls per minute"]
-  Checker["LangGraph checker<br/>- turns text into entities"]
-  Draft["Drafter<br/>- generateObject with Zod<br/>- cites a quote per finding"]
-  Ground["Grounding step<br/>- verify against source text<br/>- drop anything unquotable"]
-  Entities["Breakdown entities<br/>- summary, coverage, definitions<br/>- checklist, payout"]
-  View["Breakdown<br/>- each finding shows its quote"]
-  Anthropic{"Anthropic"}
-  Browser -->|"requests"| CloudFront
-  CloudFront -->|"static"| S3
-  CloudFront -->|"dynamic"| Lambda
-  Browser -->|"POST /api/check"| API
-  Lambda -->|hosts| API
-  API -->|guard| Guard
-  Guard -->|pass| Checker
-  Checker -->|run| Draft
-  Draft -->|generate| Anthropic
-  Draft -->|"drafted findings"| Ground
-  Ground -->|"quote-backed entities"| Entities
-  Entities -->|"breakdown"| View
+  Browser["Browser<br/>(pdfjs-dist reads PDF to text)"] -->|"POST /api/check { text }"| Route["/api/check route.ts<br/>POST() -> isOriginAllowed() + rateOk()"]
+  Route -->|"runChecker(text)"| Checker["checker-graph.ts<br/>runChecker() -> compiled.invoke()"]
+  Checker -->|"draftNode() -> generateObject()"| Anthropic{"Anthropic (claude-sonnet)"}
+  Checker -->|"verifyNode() -> verifyGrounding()"| Verify["verify node<br/>(quote vs source text)"]
+  Verify -->|"finalizeNode() -> summarize()"| View["CheckResult<br/>(each finding shows its quote)"]
 ```
 
 ## Tech stack
 
-| Layer | Tech |
-|---|---|
-| Framework | Next.js 16 (App Router), React 19, TypeScript strict |
-| PDF | pdfjs-dist, worker bundled as a static asset |
-| AI checker | LangGraph grounding graph, model node via Vercel AI SDK generateObject with the Anthropic provider |
-| Grounding | Deterministic quote-in-document verification, unit-tested without a model |
-| Validation | Zod at the route boundary |
-| Abuse guards | Origin allow-list, best-effort in-memory rate limit |
-| Infra | AWS Lambda, S3, CloudFront via OpenNext, provisioned with AWS CDK |
-| Testing | Vitest, Playwright, axe, plus a spec-driven coverage gate |
-| Built on | the [platform template](https://github.com/elleskay/platform) |
+| Layer        | Tech                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| Framework    | Next.js 16 (App Router), React 19, TypeScript strict                                               |
+| PDF          | pdfjs-dist, worker bundled as a static asset                                                       |
+| AI checker   | LangGraph grounding graph, model node via Vercel AI SDK generateObject with the Anthropic provider |
+| Grounding    | Deterministic quote-in-document verification, unit-tested without a model                          |
+| Validation   | Zod at the route boundary                                                                          |
+| Abuse guards | Origin allow-list, best-effort in-memory rate limit                                                |
+| Infra        | AWS Lambda, S3, CloudFront via OpenNext, provisioned with AWS CDK                                  |
+| Testing      | Vitest, Playwright, axe, plus a spec-driven coverage gate                                          |
+| Built on     | the [platform template](https://github.com/elleskay/platform)                                      |
+
+## Repository layout
+
+The repo is an npm workspace carrying the app plus the platform layer it was cloned from:
+
+```
+apps/insure/          The CoverLens app (the code this README describes)
+apps/_demo/           Platform demo app; CI builds it to self-test the CDK construct
+apps/_template/       Platform overlay files for scaffolding future apps
+packages/spec-test/   Spec-driven test runner, coverage gate CLI, ESLint rule
+infra/cdk/insure/     CDK stack that deploys CoverLens (InsureServerless)
+infra/cdk/_template/  CDK package scaffold; infra/cdk/_setup provisions the OIDC deploy role
+docs/                 Platform runbooks: SETUP, DEPLOY, TESTING, SSDLC
+```
+
+## Run it locally
+
+```bash
+npm install
+npm run build:spec-test        # the test runner's dist is gitignored
+
+cd apps/insure
+cp .env.example .env.local     # set ANTHROPIC_API_KEY to enable the checker
+npm run dev                    # http://localhost:3000
+```
+
+Without `ANTHROPIC_API_KEY` the page, upload flow, and sample report still work; only the live check returns 503.
+
+Tests (the model is mocked, so no key or network is needed):
+
+```bash
+cd apps/insure
+npm run test:spec              # build + unit + e2e + 100% spec coverage gate
+```
+
+## CI/CD
+
+Four GitHub Actions workflows:
+
+| Workflow       | What it gates                                                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`       | actionlint, typecheck, lint, and unit tests across all workspaces, plus the platform self-test (demo build + CDK synth)                               |
+| `test.yml`     | The spec coverage gate for `apps/insure`: build, Vitest, Playwright, and the 100% coverage check, with the report posted to PRs                       |
+| `security.yml` | CodeQL, gitleaks secret scan, and npm audit (blocking for production dependencies)                                                                    |
+| `deploy.yml`   | On push to `main`: re-runs the spec gate, builds with OpenNext, deploys via CDK using GitHub OIDC (no stored AWS keys), then smoke-tests the live URL |
+
+The deployed stack is `InsureServerless` (`infra/cdk/insure`): CloudFront in front of an ARM64 Lambda running Next.js via OpenNext, static assets on S3, custom domain `coverlens.soonkeong.dev`. Checker configuration (`ANTHROPIC_API_KEY`, `CHECKER_MODEL`, `ALLOWED_ORIGINS`) is baked into the Lambda environment at synth time from GitHub Actions secrets and variables.
 
 ## License
 
