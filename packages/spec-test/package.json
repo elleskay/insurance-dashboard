@@ -26,7 +26,10 @@
   "bin": {
     "spec-coverage": "./dist/cli.js"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
@@ -41,8 +44,12 @@
     "vitest": "^2.0.0"
   },
   "peerDependenciesMeta": {
-    "@playwright/test": { "optional": true },
-    "vitest": { "optional": true }
+    "@playwright/test": {
+      "optional": true
+    },
+    "vitest": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

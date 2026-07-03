@@ -16,9 +16,7 @@ export function EmptyState({ icon: Icon, title, description, action }: EmptyStat
       </div>
       <div className="space-y-1 text-center">
         <h3 className="text-sm font-medium">{title}</h3>
-        {description && (
-          <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
-        )}
+        {description && <p className="max-w-sm text-sm text-muted-foreground">{description}</p>}
       </div>
       {action}
     </Card>

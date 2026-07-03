@@ -35,10 +35,7 @@ export function makeLimiter(opts: MakeLimiterOptions): Ratelimit | null {
  * Check whether the given identifier (IP, user id, etc) is allowed under the
  * given limiter. Returns true when no Upstash is configured (local dev).
  */
-export async function isAllowed(
-  identifier: string,
-  limiter: Ratelimit | null,
-): Promise<boolean> {
+export async function isAllowed(identifier: string, limiter: Ratelimit | null): Promise<boolean> {
   if (!limiter) return true;
   const { success } = await limiter.limit(identifier);
   return success;

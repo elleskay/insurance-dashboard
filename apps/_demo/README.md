@@ -1,4 +1,4 @@
-# apps/_demo — platform demo app
+# apps/\_demo — platform demo app
 
 Minimal Next.js app that uses every pattern the platform recommends:
 

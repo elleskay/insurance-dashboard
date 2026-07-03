@@ -1,19 +1,8 @@
 import { z } from "zod";
 
-export const RequirementCategory = z.enum([
-  "functional",
-  "ui",
-  "security",
-  "data",
-  "a11y",
-]);
+export const RequirementCategory = z.enum(["functional", "ui", "security", "data", "a11y"]);
 
-export const RequirementSeverity = z.enum([
-  "critical",
-  "high",
-  "medium",
-  "low",
-]);
+export const RequirementSeverity = z.enum(["critical", "high", "medium", "low"]);
 
 const requirementIdPattern = /^[A-Z][A-Z0-9]*(-[A-Z][A-Z0-9]*)+-\d{3,}$/;
 

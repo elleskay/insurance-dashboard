@@ -11,10 +11,7 @@ export interface CoverageReport {
   passed: boolean;
 }
 
-export function buildReport(
-  spec: SpecFile,
-  entries: CoverageEntry[],
-): CoverageReport {
+export function buildReport(spec: SpecFile, entries: CoverageEntry[]): CoverageReport {
   const byId = new Map<string, CoverageEntry[]>();
   for (const e of entries) {
     const arr = byId.get(e.id) ?? [];
@@ -58,10 +55,7 @@ export function buildReport(
     failingRequirements: failing,
     categoryMismatches,
     coveragePct: total === 0 ? 100 : Math.round((covered / total) * 1000) / 10,
-    passed:
-      uncovered.length === 0 &&
-      failing.length === 0 &&
-      categoryMismatches.length === 0,
+    passed: uncovered.length === 0 && failing.length === 0 && categoryMismatches.length === 0,
   };
 }
 
@@ -85,9 +79,7 @@ export function renderMarkdown(spec: SpecFile, report: CoverageReport): string {
     lines.push("| ID | Title | Category | Severity |");
     lines.push("|---|---|---|---|");
     for (const req of report.uncoveredRequirements) {
-      lines.push(
-        `| \`${req.id}\` | ${req.title} | ${req.category} | ${req.severity} |`,
-      );
+      lines.push(`| \`${req.id}\` | ${req.title} | ${req.category} | ${req.severity} |`);
     }
     lines.push("");
   }
@@ -98,9 +90,7 @@ export function renderMarkdown(spec: SpecFile, report: CoverageReport): string {
     lines.push("| ID | Title | Failing tests |");
     lines.push("|---|---|---|");
     for (const { req, failingTests } of report.failingRequirements) {
-      lines.push(
-        `| \`${req.id}\` | ${req.title} | ${failingTests.length} |`,
-      );
+      lines.push(`| \`${req.id}\` | ${req.title} | ${failingTests.length} |`);
     }
     lines.push("");
   }

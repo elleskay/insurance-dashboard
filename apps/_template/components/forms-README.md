@@ -5,6 +5,7 @@ Two valid patterns. The platform does NOT pre-install React Hook Form so each ap
 ## Pattern A: Plain server-action forms (no client deps)
 
 Use when:
+
 - Forms are simple (a few fields, no complex client-side state)
 - You're fine with validation errors only surfacing after submit
 - You want zero client-side JavaScript for forms
@@ -47,6 +48,7 @@ This is the pattern the demo app uses. Zero extra deps.
 ## Pattern B: React Hook Form + shadcn `<Form>` component
 
 Use when:
+
 - Forms have many fields, nested fields, or arrays
 - You want inline field-level validation as the user types
 - You want consistent field-level error UI
@@ -63,11 +65,11 @@ Then the standard shadcn Form usage applies. See https://ui.shadcn.com/docs/comp
 
 ## Which one for which app
 
-| App type | Pick |
-|---|---|
-| Login, signup, settings forms (few fields) | A |
-| Multi-step booking, nested item lists, complex validation | B |
-| Internal admin tools | A is usually enough |
-| Public-facing checkout / data entry | B for better UX |
+| App type                                                  | Pick                |
+| --------------------------------------------------------- | ------------------- |
+| Login, signup, settings forms (few fields)                | A                   |
+| Multi-step booking, nested item lists, complex validation | B                   |
+| Internal admin tools                                      | A is usually enough |
+| Public-facing checkout / data entry                       | B for better UX     |
 
 Pick per app, not globally. Mixing both in the same app is fine.

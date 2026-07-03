@@ -18,13 +18,18 @@ const toneStyles: Record<NonNullable<StatCardProps["tone"]>, string> = {
   info: "text-primary",
 };
 
-export function StatCard({ label, value, icon: Icon, tone = "default", hint, delta }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  icon: Icon,
+  tone = "default",
+  hint,
+  delta,
+}: StatCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {label}
-        </CardTitle>
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
         <Icon className={cn("h-4 w-4", toneStyles[tone])} />
       </CardHeader>
       <CardContent>
@@ -34,9 +39,7 @@ export function StatCard({ label, value, icon: Icon, tone = "default", hint, del
             {delta && (
               <span
                 className={cn(
-                  delta.positive
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-destructive",
+                  delta.positive ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
                 )}
               >
                 {delta.positive ? "+" : ""}

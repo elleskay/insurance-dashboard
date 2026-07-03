@@ -57,8 +57,7 @@ export const CHECK_DESCRIPTIONS: Record<CheckKey, string> = {
     "A number of days you must survive after a diagnosis or event before a benefit is paid (common on critical illness plans).",
   "pre-existing":
     "Whether conditions you already had before the policy started are excluded or limited.",
-  exclusions:
-    "Specific situations, conditions or activities the policy will not pay for.",
+  exclusions: "Specific situations, conditions or activities the policy will not pay for.",
   deductible:
     "The fixed amount you pay out of pocket before the policy pays anything. Bills at or below it are fully self-paid (the most common reason a claim does not pay out).",
   "co-payment":
