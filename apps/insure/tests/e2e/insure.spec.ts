@@ -24,7 +24,7 @@ type Found = {
   severity: "info" | "watch" | "caution";
 };
 
-// Build a full 8-item checklist: keys in `found` are marked found with their
+// Build the full curated checklist: keys in `found` are marked found with their
 // detail/quote, the rest are not-stated. Mirrors what summarize() returns.
 function checklist(found: Partial<Record<string, Found>>) {
   return CHECK_ITEMS.map((key) => {
@@ -119,9 +119,7 @@ async function uploadSample(page: Page): Promise<void> {
   await expect(page.getByTestId("policy-check")).toHaveCount(1, { timeout: 20_000 });
 }
 
-function seriousViolationIds(
-  violations: { id: string; impact?: string | null }[],
-): string[] {
+function seriousViolationIds(violations: { id: string; impact?: string | null }[]): string[] {
   return violations
     .filter((v) => v.impact === "critical" || v.impact === "serious")
     .map((v) => v.id);
@@ -257,9 +255,7 @@ test("[INSURE-TRUST-001] a not-advice disclaimer with a reviewed date is present
   await expect(page.getByTestId("reviewed")).toContainText("2026-06-03");
 });
 
-test("[INSURE-SEC-001] the app is usable without authentication", async ({
-  page,
-}) => {
+test("[INSURE-SEC-001] the app is usable without authentication", async ({ page }) => {
   const res = await page.goto("/");
   expect(res?.status()).toBeLessThan(400);
   expect(page.url()).not.toContain("/login");
@@ -331,9 +327,9 @@ test("[INSURE-DEMO-001] a visitor can load a sample report without uploading a d
   await expect(page.getByTestId("policy-check").first()).toBeVisible();
   await expect(page.getByTestId("sample-badge").first()).toBeVisible();
   await expect(page.getByTestId("check-summary").first()).not.toBeEmpty();
-  await expect(
-    page.getByTestId("policy-check").first().getByTestId("checklist-item"),
-  ).toHaveCount(CHECK_ITEMS.length);
+  await expect(page.getByTestId("policy-check").first().getByTestId("checklist-item")).toHaveCount(
+    CHECK_ITEMS.length,
+  );
 });
 
 test("[INSURE-JOURNEY-001] upload a policy and see its summary plus a grounded fine-print checklist", async ({
