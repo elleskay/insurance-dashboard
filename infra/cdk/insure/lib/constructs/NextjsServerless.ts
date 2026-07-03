@@ -187,7 +187,7 @@ export class NextjsServerless extends Construct {
     });
 
     this.serverFunction = new lambda.Function(this, "ServerFunction", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: "index.handler",
       code: lambda.Code.fromAsset(path.join(openNextDir, "server-functions", "default")),
       memorySize: props.serverMemoryMb ?? 1024,
@@ -220,7 +220,7 @@ export class NextjsServerless extends Construct {
     });
 
     this.imageFunction = new lambda.Function(this, "ImageFunction", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: "index.handler",
       code: lambda.Code.fromAsset(path.join(openNextDir, "image-optimization-function")),
       memorySize: 1024,
@@ -255,8 +255,7 @@ export class NextjsServerless extends Construct {
         }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-        cachePolicy:
-          props.defaultCachePolicy ?? cloudfront.CachePolicy.CACHING_DISABLED,
+        cachePolicy: props.defaultCachePolicy ?? cloudfront.CachePolicy.CACHING_DISABLED,
         originRequestPolicy: requestForwardAll,
         responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
       },

@@ -1,44 +1,38 @@
-# CDK app scaffold
+# CoverLens CDK app
 
-Full CDK package for deploying a Next.js + OpenNext app to AWS serverless. Copy this whole directory into your app and rename.
+Deploys `apps/insure` to AWS as Lambda + S3 + CloudFront via the `NextjsServerless` construct, served at [coverlens.soonkeong.dev](https://coverlens.soonkeong.dev).
 
-## Use
+One stack: `InsureServerless` (see `bin/app.ts`). The custom domain and its ACM certificate (us-east-1) are set in `lib/web-stack.ts`; DNS is a CNAME on the external provider pointing at the CloudFront distribution.
+
+## How it deploys
+
+Push to `main` runs `.github/workflows/deploy.yml`: OIDC-assume the deploy role, build the app with OpenNext, `cdk deploy` from this directory, then smoke-test the deployed URL. No long-lived AWS keys.
+
+Env vars are baked into the Lambda at synth time:
+
+| Var                 | Required   | Purpose                                                         |
+| ------------------- | ---------- | --------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | yes        | The checker's model calls. Without it `/api/check` returns 503. |
+| `CHECKER_MODEL`     | no         | Model id for the drafting node (defaults in code).              |
+| `ALLOWED_ORIGINS`   | production | Origin allow-list for the paid `/api/check` route.              |
+
+## Manual deploy
 
 ```bash
-# From your cloned app repo, rename _template to your app name
-cp -r infra/cdk/_template infra/cdk/<your-app>
-rm -rf infra/cdk/_template
-cd infra/cdk/<your-app>
+# Build the app with OpenNext first (Linux/macOS/WSL; the image-opt bundle
+# fails to assemble on Windows)
+cd ../../../apps/insure && npm run build:open-next
+
+# Deploy (CDK bootstrap is a one-time per account+region step)
+cd ../../infra/cdk/insure
 npm install
-```
-
-Then edit:
-
-- `bin/app.ts` — rename the stack id (e.g. `AppServerless` → `ArmouryServerless`)
-- `lib/web-stack.ts` — confirm `appPath` resolves to your Next.js app directory
-- Optionally enable `customDomain` to skip the two-pass deploy (see `lib/constructs/NextjsServerless.ts` JSDoc)
-
-## Deploy
-
-```bash
-# Build the app with OpenNext first (see app's README)
-cd ../../../apps/web && npm run build:open-next
-
-# Bootstrap CDK once per AWS account/region
-cd ../../infra/cdk/<your-app>
-npx cdk bootstrap aws://<account>/<region>
-
-# Deploy
-DATABASE_URL=... AUTH_SECRET=... AUTH_URL=https://your-cf-url npx cdk deploy --all
+ANTHROPIC_API_KEY=... ALLOWED_ORIGINS=... npx cdk deploy --all
 ```
 
 ## What's inside
 
-- `bin/app.ts` — CDK app entry point
-- `lib/web-stack.ts` — the deploy unit (one CloudFormation stack)
-- `lib/constructs/NextjsServerless.ts` — reusable construct, ~200 lines that encode all the production gotchas
-- `package.json`, `tsconfig.json`, `cdk.json`, `.gitignore` — CDK package boilerplate
+- `bin/app.ts` — CDK entry point, instantiates the `InsureServerless` stack
+- `lib/web-stack.ts` — the deploy unit (app path, Lambda env, custom domain)
+- `lib/constructs/NextjsServerless.ts` — the platform's reusable construct (this app's copy adds a configurable server timeout for the slow checker route)
 
-## Why copy and not import as a package
-
-For a portfolio platform, npm publishing is overhead without payoff. The copy-on-scaffold pattern means each app pins its version of the construct, and breaking changes never propagate without explicit action.
+The construct is copied from `infra/cdk/_template`, not imported, so this app pins its own version. See that directory's README for the scaffold docs.
